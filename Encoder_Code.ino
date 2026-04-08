@@ -18,11 +18,11 @@ HTML510Server h(80);
 //const char* ssid = "TP-Link_8A8C";
 //const char* password = "12488674";
 //SET UP SSID AT ANH'S HOME
-const char* ssid = "TheSpot";
-const char* password = "D0esntSp0tLiveHere?";
+//const char* ssid = "TheSpot";
+//const char* password = "D0esntSp0tLiveHere?";
 //SET UP SSID AT ANH'S PHONE
-//const char* ssid = "iPhone";
-//const char* password = "anhduong";
+const char* ssid = "iPhone";
+const char* password = "anhduong";
 //WIFI IP ADDRESSES
 IPAddress myIP (192,168,1,105); //Anh's IP
 IPAddress gateway(192,168,1,1); //Router IP
@@ -67,8 +67,8 @@ float integral = 0; //CHANGE FOR TUNING
 float previous_error = 0; //CHANGE FOR TUNING
 unsigned long last_pid_time = 0; //TIMER FOR PID
 float previous_rpm = 0; //STORE PREVIOUS RPM VALUE
-float previous_count = 0; //STORE PREVIOUS COUNT VALUE
-float previous_manual_count = 0; //STORE PREVIOUS COUNT VALUE
+long previous_count = 0; //STORE PREVIOUS COUNT VALUE
+long previous_manual_count = 0; //STORE PREVIOUS COUNT VALUE
 
 //TARGET RPM
 float rpm_desired = 0.0; //CHANGE IF WANT
@@ -123,7 +123,7 @@ void motor() {
 void handleSpeed() {
   int rpm_new = h.getVal();
   if (pid_enable) {
-  rpm_desired = constrain(rpm_new,0,110);
+  rpm_desired = constrain(rpm_new,-110,110);
   integral = 0; //RESET
   previous_error = 0;
   Serial.printf("RPM set to: %.1f, PID enabled\n", rpm_desired);
@@ -165,6 +165,7 @@ void handleRoot() {
 
 //SET UP DIRECTION HANDLER
 void handleDirection() {
+  //if (pid_enable) return; //IGNORE FOR PID MODE
   int motor_direction_new = h.getVal();
   if (motor_direction_new < -1) motor_direction_new = -1;
   if (motor_direction_new > 1) motor_direction_new = 1;
@@ -186,15 +187,15 @@ void PIDcontrol() {
     long current_count = myEnc.read(); //USING ENCODER COUNTING LIBRARY 
     //Serial.printf("Count: %.1f  Encoder count: %.1f", count, encoder_count);
     float current_rpm = ((current_count-previous_count)/(float)count_per_revolution)*(60.0/dt);
-    //encoder_count = 0; //RESET
     //CALCULATE ERROR
     float error = rpm_desired - current_rpm;
+    //float error = current_rpm - rpm_desired;
     //P - PROPORTIONAL TUNING
     float output = Kp*error; // P OUTPUT
     //I - INTEGRAL TUNING
     integral += error*dt;
-    //MAKE SURE DOES NOT GO ABOVE 150 RPM
-    integral = constrain(integral,-150,150);
+    //MAKE SURE DOES NOT GO ABOVE 110 RPM
+    integral = constrain(integral,-110,110);
     //output += Ki*integral; // I OUTPUT
     float output_Ki = Ki*integral; //I OUTPUT
     //D - DERIVATE TUNING
@@ -205,24 +206,30 @@ void PIDcontrol() {
     //ADD ALL OUTPUT
     float control_output = output + output_Ki + output_Kd;
     //APPLY TO MOTOR
-    //motor_speed = constrain(control_output,-1001,1001);
-    if (control_output < 0) {
-      motor_direction = -1;
-      motor_speed = constrain(abs(control_output)*(resolution/110.0),0,resolution);
-    } else {
-      motor_direction = 1;
+    // //HANDLE WHEN DIRECTION CHANGES
+    // if (abs(control_output) < 5.0) { //DEAD BAND
+    //   motor_speed = 0;
+    // } else {
+    //   motor_direction = (control_output >= 0) ? 1 : -1; //MAP DIRECTION
+    //   motor_speed = constrain(abs(control_output)*(resolution/110.0),0,resolution);
+    // }
+    if (control_output > 0) {
+      motor_direction == 1;
       motor_speed = constrain((control_output)*(resolution/110.0),0,resolution);
+    } else if (control_output < 0) {
+      motor_direction == -1;
+      motor_speed = constrain((control_output)*(resolution/110.0),0,resolution);
+    } else {
+      motor_direction == 0;
+      motor_speed = 0;
     }
     motor();
     //PRINT VALUE
-    Serial.printf("Current RPM: %.1f Error %.1f Kp_out:%.1f Ki_out:%.1f Kd_out:%.1f\n",current_rpm,error,Kp*error,Ki*integral,Kd*derivative);
-    Serial.printf("Delta_count %.1f", current_count-previous_count);
+    Serial.printf("Current RPM: %.1f Kp_out:%.1f Ki_out:%.1f Kd_out:%.1f\n",current_rpm,Kp*error,Ki*integral,Kd*derivative);
+    //Serial.printf("Delta_count %.1f", current_count-previous_count);
+    //Serial.printf("Current RPM: %.1f | P: %.2f I: %.2f D: %.2f | Control: %.2f | Direction: %d | Speed: %d\n", current_rpm, Kp*error, Ki*integral, Kd*derivative, control_output, motor_direction, (int)motor_speed);
+    Serial.printf("Total count: %ld\n",current_count);
     previous_count = current_count; //UPDATE COUNT
-    // if (motor_speed == 0) {
-    //   myEnc.write(0);  // reset encoder when motor is stopped
-    //   previous_count = 0;
-    //   previous_manual_count = 0;
-    // }
     //UPDATE ERROR AND TIME AND RPM AND COUNT
     previous_rpm = current_rpm;
     previous_error = error;
@@ -257,6 +264,7 @@ void handleKd() {
 //MANUAL OR PID MODE
 void handleMode() {
   int mode = h.getVal();
+  //RESET ENCODER
   myEnc.write(0); // Clear the internal library state
   previous_manual_count = 0;
   previous_count = 0;
@@ -267,8 +275,10 @@ void handleMode() {
     motor();
   } else {
     pid_enable = true;
+    rpm_desired = 0;
     integral = 0;
     previous_error = 0;
+    previous_rpm = 0;
     previous_count = myEnc.read(); // reset manual count
   }
   Serial.printf("Mode: %d\n",mode);
