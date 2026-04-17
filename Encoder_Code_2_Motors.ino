@@ -28,12 +28,14 @@ IPAddress subnet(255,255,255,0); //Subnet IP
 
 //DEFINING ALL PINS
 //Encoder myEnc[] = { {4, 7}, {18, 19} }; //Encoder object
-Encoder myEnc[] = { {4, 7}, {19, 18} }; //Encoder object SWAP LOGIC TO MATCH DIRECTION
-int Hpin[] = {1, 0};             // PWM Pins
-int Hpin_dir1[] = {5, 10};       // Direction Pin 1
-int Hpin_dir2[] = {6, 8};       // Direction Pin 2
-int enc_pin_a[] = {4, 18};       // Encoder A
-int enc_pin_b[] = {7, 19};       // Encoder B
+Encoder myEnc[] = { {35,36}, {34,33} }; //Encoder object SWAP LOGIC TO MATCH DIRECTION
+int Hpin[] = {1, 2};             // PWM Pins
+int Hpin_dir1[] = {42, 40};       // Direction Pin 1
+int Hpin_dir2[] = {41, 39};       // Direction Pin 2
+int enc_pin_a[] = {34, 36};       // Encoder A
+int enc_pin_b[] = {33, 35};       // Encoder B
+
+//Encoder myEnc[] = {{enc_pin_a[0],enc_pin_a[1]},{enc_pin_b[0],enc_pin_b[1]}};
 
 // PID & State Arrays
 float motor_speed[] = {0, 0};
