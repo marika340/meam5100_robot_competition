@@ -394,13 +394,14 @@ void runWallFollowing() {
       control = wf_Kp * error + wf_Kd * deriv;
     }
   } else {
-    error = dLeftFilt - desiredWallDist;
-    if (dLeftFilt > wallLostDist) {
-      control = 50; // curve left to search
-    } else {
-      deriv   = (error - wf_prevError) / dt;
-      control = wf_Kp * error + wf_Kd * deriv;
-    }
+    Serial.printf("followRightWall = false");
+    // error = dLeftFilt - desiredWallDist;
+    // if (dLeftFilt > wallLostDist) {
+    //   control = 50; // curve left to search
+    // } else {
+    //   deriv   = (error - wf_prevError) / dt;
+    //   control = wf_Kp * error + wf_Kd * deriv;
+    // }
   }
 
   wf_prevError = error;
@@ -413,6 +414,7 @@ void runWallFollowing() {
   // Serial.printf("[WF] L:%.0f F:%.0f R:%.0f follow:%s err:%.1f ctrl:%.1f\n",
   //               dLeftFilt, dFrontFilt, dRightFilt,
   //               followRightWall ? "R" : "L", error, control);
+
   Serial.printf("[WF] F:%.0f R:%.0f follow:%s err:%.1f ctrl:%.1f\n",
                 dFrontFilt, dRightFilt,
                 followRightWall ? "R" : "L", error, control);
@@ -509,6 +511,26 @@ void handleMode() {
   h.sendhtml(body);
 }
 
+void handleWfKp() {
+  wf_Kp = h.getVal();
+  wf_prevError = 0.0;
+  Serial.printf("wf_Kp: %.2f\n", wf_Kp);
+  h.sendhtml(body);
+}
+
+void handleWfKd() {
+  wf_Kd = h.getVal();
+  wf_prevError = 0.0;
+  Serial.printf("wf_Kd: %.2f\n", wf_Kd);
+  h.sendhtml(body);
+}
+
+void handleSharpTurn() {
+  sharpTurnOffset = (int)constrain(h.getVal(), 0, 255);
+  Serial.printf("sharpTurnOffset: %d\n", sharpTurnOffset);
+  h.sendhtml(body);
+}
+
 // =====================================================================
 // SETUP
 // =====================================================================
@@ -558,6 +580,9 @@ void setup() {
   h.attachHandler("/dir=",        handleDir);
   h.attachHandler("/Auto=",       handleAuto);
   h.attachHandler("/mode=",       handleMode); // 0=webpage, 1=wall_follow
+  h.attachHandler("/wf_Kp=",     handleWfKp);
+  h.attachHandler("/wf_Kd=",     handleWfKd);
+  h.attachHandler("/sharpTurn=", handleSharpTurn);
   h.attachHandler("/",            handleRoot);
 
   last_pid_time = millis();
