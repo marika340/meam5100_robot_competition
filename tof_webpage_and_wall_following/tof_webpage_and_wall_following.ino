@@ -478,8 +478,38 @@ void runCenteringMode() {
   lastCenteringTime = now;
 
   readAndFilterToFs();
+
+  //TRY TO DETECT BUTTON ON THE RAMP BY SENSING THE BUTTON THICKNESS
+  //WIDTH OF THE RAMP IS ABOUT 19 INCHES (~482 MM)
+  //CENTER AT RAMP = 9.5 INCHES (~241 MM)
+  // Logic: When we are near the button, we expect a sudden drop in distance 
+  // on one side to 50mm (thickness of the button) while the other remains 
+  // near the ramp distance (241mm).
+  bool buttonRight = (dRightFilt < 70.0 && dLeftFilt > 200.0);
+  bool buttonLeft  = (dLeftFilt < 70.0 && dRightFilt > 200.0);
+
+  if (buttonRight || buttonLeft) {
+    stopAllMotors();
+    delay(200);
+    // Pivot 90 degrees to face the button
+    if (buttonRight) {
+      setDriveRaw(120, -120); // Pivot right
+    } else {
+      setDriveRaw(-120, 120); // Pivot left
+    }
+    delay(500); // Adjust this delay FOR THE TURN
+    
+    stopAllMotors();
+    pressButton();
+    carMode = WEBPAGE_CONTROL;
+    return;
+  }
+
   //CALCULATE CENTERING ERROR
-  float centerError = dRightFilt - dLeftFilt;
+  float totalWidth = dLeftFilt + dRightFilt;
+  float targetDist = totalWidth/2.0; 
+  //CALCULATE THE TARGET DISTANCE BY USING READINGS FROM BOTH TOF LEFT AND RIGHT
+  float centerError = (targetDist - dLeftFilt) - (dRightFilt - targetDist);
   if (abs(centerError) < 10.0) centerError = 0.0; //IF IT IS CENTERED ENOUGH, STOP TUNING
   //ADD PID CONTROL FOR CENTERING
   
@@ -494,7 +524,7 @@ void runCenteringMode() {
   int rightCmd = baseSpeed - (int)control;
   setDriveRaw(leftCmd, rightCmd);
   //DETECT BUTTON
-  if (dFrontFilt < 100) { // Adjust '100MM' based on button distance
+  if (dFrontFilt < 100) { // Adjust '300MM' based on button distance - OUR LOWEST RANGE IS 30 MM
     stopAllMotors();
     pressButton();
   }
@@ -567,18 +597,20 @@ void handleAuto() {
 
 // /mode=0 -> force back to WEBPAGE_CONTROL
 // /mode=1 -> force into WALL_FOLLOWING
+// /mode=2 -> centering
 void handleMode() {
   int mode = h.getVal();
   if (mode == 0) {
     carMode = WEBPAGE_CONTROL;
     stopAllMotors();
-    pid_enable = false; auto_enable = false;
-    rpm_desired = 0;
+    pid_enable = false; auto_enable = true; //WANT AUTO MODE WITH MANUAL WARM UP TO PID 
+    rpm_desired = 0.0;
     for (int i = 0; i < 2; i++) {
       myEnc[i].write(0);
       prev_manual_count[i] = 0; previous_count[i] = 0;
       integral[i] = 0; previous_error[i] = 0;
     }
+    manual_start_time = millis();
     Serial.println("Mode: WEBPAGE_CONTROL (forced)");
   } else if (mode == 1) {
     carMode = WALL_FOLLOWING;
@@ -702,8 +734,10 @@ void loop() {
       wf_prevError  = 0.0;
       wf_prevTimeMs = millis();
       // updateFollowDirection(dLeftFilt, dRightFilt);
-      delay(300); // short pause so motors fully stop
-      carMode = WALL_FOLLOWING;
+      if (millis() - transitionStartTime > 300) { //USE THIS IS BETTER THAN USING DELAYS
+        transitionStartTime = 0; // Reset for next time
+        carMode = WALL_FOLLOWING;
+      }
       Serial.println(">>> WALL_FOLLOWING engaged.");
       break;
 
