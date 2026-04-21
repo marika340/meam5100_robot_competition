@@ -18,14 +18,14 @@ const char body[] PROGMEM = R"===(
 </head>
 <body>
     <h1>Team 8 Car</h1>
-    <button id="automode" onclick="toggleAuto()">Auto Mode: OFF</button>
-    <br><br>
+    
+    <h3>Modes</h3>
+    <button id="m0" onclick="setMode(0)">Manual / Stop</button><br>
+    <button id="m1" onclick="setMode(1)">Wall Following</button><br>
+    <button id="m2" onclick="setMode(2)">Centering + Button</button>
 
     <hr>
-    <h3>Drive</h3>
-    Speed: <input type="range" id="speedslider" min="0" max="130" value="0">
-    <span id="dout">0</span><br><br>
-
+    <h3>Manual Drive</h3>
     <div>
         <button class="dir-btn" onmousedown="sendDir('F')" onmouseup="sendDir('S')" ontouchstart="sendDir('F')" ontouchend="sendDir('S')">Fwd</button><br>
         <button class="dir-btn" onmousedown="sendDir('R')" onmouseup="sendDir('S')" ontouchstart="sendDir('R')" ontouchend="sendDir('S')">Left</button>
@@ -34,17 +34,6 @@ const char body[] PROGMEM = R"===(
     </div>
     <br>
     <button onclick="sendDir('S')">&#9646; Force Stop</button>
-
-    <hr>
-    <h3>PID Tuning (Drive)</h3>
-    Kp: <input type="range" id="kpslider" min="0" max="20" step="0.1" value="0">
-    <span id="kpout">0</span><br><br>
-
-    Ki: <input type="range" id="kislider" min="0" max="15" step="0.1" value="0">
-    <span id="kiout">0</span><br><br>
-
-    Kd: <input type="range" id="kdslider" min="0" max="20" step="0.1" value="0">
-    <span id="kdout">0</span><br><br>
 
     <hr>
     <h3>Wall Following Tuning</h3>
@@ -64,12 +53,10 @@ const char body[] PROGMEM = R"===(
         xhr.send();
     }
 
-    let auto = false;
-    function toggleAuto() {
-        auto = !auto;
-        document.getElementById("automode").innerHTML = "Auto Mode: " + (auto ? "ON" : "OFF");
-        document.getElementById("automode").className = auto ? "active" : "";
-        sendGET("/Auto=" + (auto ? "1" : "0"));
+    function setMode(m) {
+        document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('m' + m).classList.add('active');
+        sendGET("/mode=" + m);
     }
 
     function sendDir(dir) { sendGET("/dir=" + dir); }
@@ -82,13 +69,9 @@ const char body[] PROGMEM = R"===(
         };
     }
 
-    setupInput("speedslider",  "dout",    "/motor_speed=");
-    setupInput("kpslider",     "kpout",   "/Kp=");
-    setupInput("kislider",     "kiout",   "/Ki=");
-    setupInput("kdslider",     "kdout",   "/Kd=");
-    setupInput("wfkpslider",   "wfkpout", "/wf_Kp=");
-    setupInput("wfkdslider",   "wfkdout", "/wf_Kd=");
-    setupInput("stoSlider",    "stoOut",  "/sharpTurn=");
+    setupInput("wfkpslider", "wfkpout", "/wf_Kp=");
+    setupInput("wfkdslider", "wfkdout", "/wf_Kd=");
+    setupInput("stoSlider",  "stoOut",  "/sharpTurn=");
 </script>
 </body>
 </html>

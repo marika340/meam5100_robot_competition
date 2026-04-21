@@ -17,6 +17,7 @@
 #include <Encoder.h>
 #include <Wire.h>
 #include "Adafruit_VL53L0X.h"
+#include "Adafruit_VL53L1X.h"
 
 // =====================================================================
 // WIFI CONFIG
@@ -70,7 +71,7 @@ float pid_transition = 0.90;
 // =====================================================================
 // TOF SENSOR PINS  (wall following side)
 // =====================================================================
-// #define XSHUT_LEFT   19
+#define XSHUT_LEFT   19
 #define XSHUT_FRONT  10
 #define XSHUT_RIGHT  18
 
@@ -78,15 +79,15 @@ float pid_transition = 0.90;
 #define ADDR_FRONT   0x31
 #define ADDR_RIGHT   0x32
 
-// Adafruit_VL53L0X loxLeft  = Adafruit_VL53L0X();
-Adafruit_VL53L0X loxFront = Adafruit_VL53L0X();
-Adafruit_VL53L0X loxRight = Adafruit_VL53L0X();
+Adafruit_VL53L0X loxLeft  = Adafruit_VL53L0X(); //RANGE UP TO 1000 MM
+Adafruit_VL53L1X loxFront = Adafruit_VL53L1X(); //RANGE UP TO 4000 MM
+Adafruit_VL53L0X loxRight = Adafruit_VL53L0X(); //RANGE UP TO 1000 MM
 
-// VL53L0X_RangingMeasurementData_t measureLeft;
-VL53L0X_RangingMeasurementData_t measureFront;
+VL53L0X_RangingMeasurementData_t measureLeft;
+//VL53L1X_RangingMeasurementData_t measureFront; DO NOT MEASURE LIKE VL53L0X
 VL53L0X_RangingMeasurementData_t measureRight;
 
-// float dLeftFilt  = 300.0;
+float dLeftFilt  = 300.0;
 float dFrontFilt = 300.0;
 float dRightFilt = 300.0;
 float alpha      = 0.35;
@@ -112,7 +113,7 @@ unsigned long loopPeriodMs  = 30;
 // =====================================================================
 // OPERATING MODE
 // =====================================================================
-enum CarMode { WEBPAGE_CONTROL, TRANSITION, WALL_FOLLOWING };
+enum CarMode { WEBPAGE_CONTROL, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
 CarMode carMode = WEBPAGE_CONTROL;
 
 // =====================================================================
@@ -193,7 +194,6 @@ void setDriveRaw(int leftCmd, int rightCmd) {
 // =====================================================================
 // TOF HELPERS
 // =====================================================================
-
 float ema(float oldVal, float newVal, float a) {
   return a * newVal + (1.0 - a) * oldVal;
 }
@@ -209,25 +209,26 @@ bool initSensorWithAddress(Adafruit_VL53L0X &sensor, uint8_t addr) {
 }
 
 bool initThreeToFs() {
-  // pinMode(XSHUT_LEFT,  OUTPUT);
+  pinMode(XSHUT_LEFT,  OUTPUT);
   pinMode(XSHUT_FRONT, OUTPUT);
   pinMode(XSHUT_RIGHT, OUTPUT);
-  // digitalWrite(XSHUT_LEFT,  LOW);
+  digitalWrite(XSHUT_LEFT,  LOW);
   digitalWrite(XSHUT_FRONT, LOW);
   digitalWrite(XSHUT_RIGHT, LOW);
   delay(50);
 
-  // digitalWrite(XSHUT_LEFT, HIGH); delay(50);
-  // if (!initSensorWithAddress(loxLeft, ADDR_LEFT)) {
-  //   Serial.println("Failed: LEFT VL53L0X"); return false;
-  // }
-  // Serial.println("LEFT VL53L0X OK");
+  digitalWrite(XSHUT_LEFT, HIGH); delay(50);
+  if (!initSensorWithAddress(loxLeft, ADDR_LEFT)) {
+    Serial.println("Failed: LEFT VL53L0X"); return false;
+  }
+  Serial.println("LEFT VL53L0X OK");
 
   digitalWrite(XSHUT_FRONT, HIGH); delay(50);
-  if (!initSensorWithAddress(loxFront, ADDR_FRONT)) {
+  if (!loxFront.begin(ADDR_FRONT)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
     Serial.println("Failed: FRONT VL53L0X"); return false;
   }
-  Serial.println("FRONT VL53L0X OK");
+  loxFront.startRanging(); //START MEASURE HERE
+  Serial.println("FRONT VL53L1X OK");
 
   digitalWrite(XSHUT_RIGHT, HIGH); delay(50);
   if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
@@ -239,9 +240,19 @@ bool initThreeToFs() {
 }
 
 void readAndFilterToFs() {
-  // dLeftFilt  = ema(dLeftFilt,  readSingleRangeMM(loxLeft,  measureLeft),  alpha);
-  dFrontFilt = ema(dFrontFilt, readSingleRangeMM(loxFront, measureFront), alpha);
+  //HANDLE L0X SENSOR
+  dLeftFilt  = ema(dLeftFilt,  readSingleRangeMM(loxLeft,  measureLeft),  alpha);
+  //dFrontFilt = ema(dFrontFilt, readSingleRangeMM(loxFront, measureFront), alpha);
   dRightFilt = ema(dRightFilt, readSingleRangeMM(loxRight, measureRight), alpha);
+
+  //HANDLE L1X SENSOR
+  if (loxFront.dataReady()) { //USE FUNCTION FROM THE LIBRARY
+    float front_read = (float)loxFront.distance();
+    if (front_read > 0){
+      dFrontFilt = ema(dFrontFilt, front_read, alpha);
+    }
+    loxFront.clearInterrupt();
+  }
 }
 
 void updateFollowDirection(float leftMM, float rightMM) {
@@ -357,7 +368,30 @@ void autoMode() {
 // =====================================================================
 // WALL-FOLLOWING LOGIC
 // =====================================================================
+void handleSharpTurn() {
+  sharpTurnOffset = (int)constrain(h.getVal(), 0, 255);
+  Serial.printf("sharpTurnOffset: %d\n", sharpTurnOffset);
+  h.sendhtml(body);
+}
 
+//ADD A HANDLE CORNER FUNCTION
+void handleCorner(bool LeftTurn) {
+  setDriveRaw(0,0); delay(100); //TURN OFF MOTORS BEFORE ACTION - GOOD PRACTICE!
+  if (LeftTurn) {
+    while (dFrontFilt < frontStopDist) { // TURN UNTIL CLEAR OBSTACLE
+    setDriveRaw(-120,120); //PIVOT TO THE LEFT
+    readAndFilterToFs();
+    delay(500);
+    }
+    } else {
+    setDriveRaw(baseSpeed,baseSpeed); //OR GO AT THE CURRENT SPEED
+    delay(300);
+    setDriveRaw(120,-120); //PIVOT TO THE RIGHT
+    delay(500);
+  }
+  wf_prevError = 0.0; //RESET PID ERROR
+}
+//HANDLE WALL FOLLOWING
 void runWallFollowing() {
   static unsigned long lastLoop = 0;
   unsigned long now = millis();
@@ -372,7 +406,7 @@ void runWallFollowing() {
   wf_prevTimeMs = now;
 
   float error = 0.0, deriv = 0.0, control = 0.0;
-
+  //HANDLE CORNERS
   // Hard obstacle ahead — turn away
   if (dFrontFilt < frontStopDist) {
     if (followRightWall)
@@ -394,14 +428,14 @@ void runWallFollowing() {
       control = wf_Kp * error + wf_Kd * deriv;
     }
   } else {
-    Serial.printf("followRightWall = false");
-    // error = dLeftFilt - desiredWallDist;
-    // if (dLeftFilt > wallLostDist) {
-    //   control = 50; // curve left to search
-    // } else {
-    //   deriv   = (error - wf_prevError) / dt;
-    //   control = wf_Kp * error + wf_Kd * deriv;
-    // }
+    //Serial.printf("followRightWall = false");
+    error = dLeftFilt - desiredWallDist;
+    if (dLeftFilt > wallLostDist) {
+      control = 50; // curve left to search
+    } else {
+      deriv   = (error - wf_prevError) / dt;
+      control = wf_Kp * error + wf_Kd * deriv;
+    }
   }
 
   wf_prevError = error;
@@ -419,7 +453,52 @@ void runWallFollowing() {
                 dFrontFilt, dRightFilt,
                 followRightWall ? "R" : "L", error, control);
 }
+//ADD PUSHING BUTTON ACTION -> DETECT BUTTON 
+void pressButton() { //NO PID FOR THIS BECAUSE DISTANCE CLOSE ENOUGH
+  stopAllMotors();
+  //DRIVE FORWARD TO PUSH
+  setDriveRaw(80,80);
+  delay(500); //DRIVE HALF A SECOND TO REACH BUTTON
+  //HOLD POSITION
+  setDriveRaw(50,50);
+  delay(8000); //HOLD FOR 8 SECONDS
+  //GO BACK
+  setDriveRaw(-80,-80);
+  delay(500);
+  stopAllMotors();
+}
+//CENTER THE CAR AS GETTING NEAR TO THE NEXUS ON THE OTHER SIDE TO PRESS BUTTON
+//THIS IS TO CAPTURE OPPONENT NEXUS AND LOWER LEXUS, BY TAKING ADVANTAGE OF SYMMETRICAL FIELD
+void runCenteringMode() {
+  static unsigned long lastCenteringTime = 0;
+  unsigned long now = millis();
+  float dt = (now - lastCenteringTime) / 1000.0;
+  //RUN PD WHEN NEED
+  if (dt < 0.01) return; 
+  lastCenteringTime = now;
 
+  readAndFilterToFs();
+  //CALCULATE CENTERING ERROR
+  float centerError = dRightFilt - dLeftFilt;
+  if (abs(centerError) < 10.0) centerError = 0.0; //IF IT IS CENTERED ENOUGH, STOP TUNING
+  //ADD PID CONTROL FOR CENTERING
+  
+  // FIX THE PD LOOP
+  float deriv = (centerError - wf_prevError) / dt;
+  float control = (wf_Kp * centerError) + (wf_Kd * deriv);
+  wf_prevError = centerError;
+  //COMPENSATE FOR CORRECTION
+  //ADD CONSTRAINT TO PREVENT MOTOR BURN OUT
+  control = constrain(control, -100, 100);
+  int leftCmd  = baseSpeed + (int)control;
+  int rightCmd = baseSpeed - (int)control;
+  setDriveRaw(leftCmd, rightCmd);
+  //DETECT BUTTON
+  if (dFrontFilt < 100) { // Adjust '100MM' based on button distance
+    stopAllMotors();
+    pressButton();
+  }
+}
 // =====================================================================
 // WEB HANDLERS
 // =====================================================================
@@ -507,6 +586,10 @@ void handleMode() {
     wf_prevError  = 0.0;
     wf_prevTimeMs = millis();
     Serial.println("Mode: WALL_FOLLOWING (forced)");
+  } else if (mode == 2) {
+  carMode = CENTERING;
+  stopAllMotors();
+  Serial.println("Mode: CENTERING (forced)");
   }
   h.sendhtml(body);
 }
@@ -522,12 +605,6 @@ void handleWfKd() {
   wf_Kd = h.getVal();
   wf_prevError = 0.0;
   Serial.printf("wf_Kd: %.2f\n", wf_Kd);
-  h.sendhtml(body);
-}
-
-void handleSharpTurn() {
-  sharpTurnOffset = (int)constrain(h.getVal(), 0, 255);
-  Serial.printf("sharpTurnOffset: %d\n", sharpTurnOffset);
   h.sendhtml(body);
 }
 
@@ -558,8 +635,8 @@ void setup() {
   } else {
     // Initial filtered reads
     delay(100);
-    // dLeftFilt  = readSingleRangeMM(loxLeft,  measureLeft);
-    dFrontFilt = readSingleRangeMM(loxFront, measureFront);
+    dLeftFilt  = readSingleRangeMM(loxLeft,  measureLeft);
+    //dFrontFilt = readSingleRangeMM(loxFront, measureFront); //HAVE TO USE A DIFFERENT FUNCTION FOR L1X
     dRightFilt = readSingleRangeMM(loxRight, measureRight);
     // updateFollowDirection(dLeftFilt, dRightFilt);
   }
@@ -635,6 +712,15 @@ void loop() {
       runWallFollowing();
       // Optional: uncomment to allow manual override from web UI
       // (user would call /mode=0 to return to webpage control)
+      break;
+    // ------------------------------------------------------------------
+    case CENTERING:
+      runCenteringMode();  //CENTER TO CAPTURE LOWER TOWER AND NEXUS
+      break;
+    // ------------------------------------------------------------------
+    case PRESSING_BUTTON:
+      pressButton();
+      carMode = WEBPAGE_CONTROL; // Return to manual after task
       break;
   }
 }
