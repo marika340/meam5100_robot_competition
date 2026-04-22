@@ -71,9 +71,9 @@ float pid_transition = 0.90;
 // =====================================================================
 // TOF SENSOR PINS  (wall following side)
 // =====================================================================
-#define XSHUT_LEFT   19
-#define XSHUT_FRONT  10
-#define XSHUT_RIGHT  18
+#define XSHUT_LEFT   18
+#define XSHUT_FRONT  17
+#define XSHUT_RIGHT  10
 
 #define ADDR_LEFT    0x30
 #define ADDR_FRONT   0x31
@@ -223,18 +223,37 @@ bool initThreeToFs() {
   }
   Serial.println("LEFT VL53L0X OK");
 
-  digitalWrite(XSHUT_FRONT, HIGH); delay(50);
-  if (!loxFront.begin(ADDR_FRONT)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
-    Serial.println("Failed: FRONT VL53L0X"); return false;
-  }
-  loxFront.startRanging(); //START MEASURE HERE
-  Serial.println("FRONT VL53L1X OK");
-
   digitalWrite(XSHUT_RIGHT, HIGH); delay(50);
   if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
     Serial.println("Failed: RIGHT VL53L0X"); return false;
   }
   Serial.println("RIGHT VL53L0X OK");
+
+  // Wire.beginTransmission(0x29);
+  // byte err = Wire.endTransmission();
+  // Serial.printf("0x29 probe result: %d (0=found, 2=not found)\n", err);
+  // digitalWrite(XSHUT_LEFT, HIGH);
+  // delay(200);
+  // if (!loxLeft.begin(0x29)) {
+  //     Serial.println("Failed: LEFT begin"); return false;
+  // }
+  // if (!loxLeft.setAddress(ADDR_LEFT)) {   // CHECK THIS
+  //     Serial.println("Failed: LEFT setAddress"); return false;
+  // }
+  // Serial.println("LEFT VL53L0X OK");
+
+  digitalWrite(XSHUT_FRONT, HIGH); delay(100);
+  if (!loxFront.begin(ADDR_FRONT)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
+    Serial.println("Failed: FRONT VL53L1X"); return false;
+  }
+  loxFront.startRanging(); //START MEASURE HERE
+  Serial.println("FRONT VL53L1X OK");
+  
+  // digitalWrite(XSHUT_RIGHT, HIGH); delay(100);
+  // if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
+  //   Serial.println("Failed: RIGHT VL53L0X"); return false;
+  // }
+  // Serial.println("RIGHT VL53L0X OK");
 
   return true;
 }
