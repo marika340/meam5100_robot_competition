@@ -22,6 +22,7 @@
 #include <Wire.h>
 #include "Adafruit_VL53L0X.h"
 #include "Adafruit_VL53L1X.h"
+#include "SoftWire.h"
 
 // =====================================================================
 // WIFI CONFIG
@@ -29,6 +30,8 @@
 HTML510Server h(80);
 const char* ssid     = "iPhone";
 const char* password = "anhduong";
+//const char* ssid = "TP-Link_8A8C";
+//const char* password = "12488674";
 IPAddress myIP   (192,168,1,105);
 IPAddress gateway(192,168,1,1);
 IPAddress subnet (255,255,255,0);
@@ -78,17 +81,20 @@ float pid_transition = 0.90;
 #define XSHUT_LEFT   18
 #define XSHUT_FRONT  17
 #define XSHUT_RIGHT  10
+//SoftWire sw(15, 7);
+//TwoWire Wire1 = TwoWire(1);
 
 #define ADDR_LEFT    0x30
 #define ADDR_FRONT   0x29
 #define ADDR_RIGHT   0x32
 
-#define FRONT_SDA 15
-#define FRONT_SCL 7
+#define FRONT_SDA 16
+#define FRONT_SCL 15
 
 Adafruit_VL53L0X loxLeft  = Adafruit_VL53L0X(); //RANGE UP TO 1000 MM
 Adafruit_VL53L1X loxFront = Adafruit_VL53L1X(); //RANGE UP TO 4000 MM
 Adafruit_VL53L0X loxRight = Adafruit_VL53L0X(); //RANGE UP TO 1000 MM
+//Adafruit_VL53L1X loxFront = Adafruit_VL53L1X(17, -1); // XSHUT=pin17, no IRQ pin
 
 VL53L0X_RangingMeasurementData_t measureLeft;
 //VL53L1X_RangingMeasurementData_t measureFront; DO NOT MEASURE LIKE VL53L0X
@@ -222,7 +228,7 @@ bool initThreeToFs() {
   digitalWrite(XSHUT_LEFT,  LOW);
   digitalWrite(XSHUT_FRONT, LOW);
   digitalWrite(XSHUT_RIGHT, LOW);
-  delay(50);
+  delay(100);
 
   digitalWrite(XSHUT_LEFT, HIGH); delay(50);
   if (!initSensorWithAddress(loxLeft, ADDR_LEFT)) {
@@ -252,10 +258,10 @@ bool initThreeToFs() {
   // --- FRONT VL53L1X on Wire1 (SDA=15, SCL=7) ---
   digitalWrite(XSHUT_FRONT, HIGH); delay(100);
   Serial.println("Debugging: digitalWrite(XSHUT_FRONT, HIGH);");
-  if (!loxFront.begin(ADDR_FRONT, &Wire1)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
+  if (!loxFront.begin(0x29, &Wire1)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
     Serial.println("Failed: FRONT VL53L1X"); return false;
   }
-  // loxFront.startRanging(); //START MEASURE HERE
+  //loxFront.startRanging(); //START MEASURE HERE
   Serial.println("FRONT VL53L1X OK");
 
   if (!loxFront.startRanging()) {
@@ -264,6 +270,14 @@ bool initThreeToFs() {
     while (1)       delay(10);
   }
   Serial.println(F("Front ToF: Ranging started"));
+  
+  //MAKE SURE FRONT TOF IS GIVING READINGS
+  if (loxFront.dataReady()) {
+    int16_t front_distance = loxFront.distance();
+    Serial.print("Front ToF Distance: ");
+    Serial.print(front_distance);
+    loxFront.clearInterrupt();
+  }
 
   // Front VL53L1X: Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500 ms!
   loxFront.setTimingBudget(50);
@@ -438,7 +452,7 @@ void runWallFollowing() {
   if (now - lastLoop < loopPeriodMs) return;
   lastLoop = now;
 
-  readAndFilterToFs();
+  //readAndFilterToFs();
   // updateFollowDirection(dLeftFilt, dRightFilt);
 
   float dt = (now - wf_prevTimeMs) / 1000.0;
@@ -454,8 +468,8 @@ void runWallFollowing() {
     else
       setDriveRaw(baseSpeed + sharpTurnOffset, baseSpeed - sharpTurnOffset);
 
-    // Serial.printf("[WF] Obstacle! L:%.0f F:%.0f R:%.0f\n", dLeftFilt, dFrontFilt, dRightFilt);
-    Serial.printf("[WF] Obstacle! F:%.0f R:%.0f\n", dFrontFilt, dRightFilt);
+    Serial.printf("[WF] Obstacle! L:%.0f F:%.0f R:%.0f\n", dLeftFilt, dFrontFilt, dRightFilt);
+    //Serial.printf("[WF] Obstacle! F:%.0f R:%.0f\n", dFrontFilt, dRightFilt);
     return;
   }
 
@@ -699,7 +713,7 @@ void setup() {
     ledcAttachChannel(Hpin[i], frequency, resolution_bit, pwm_channels[i]);
   }
 
-  // I2C for ToF sensors
+  // I2C for all ToF sensors
   Wire.begin();
   Wire.setClock(400000);
 
