@@ -78,6 +78,20 @@ unsigned long lastPacketWindow = 0;
 const int windowMs = 500; //500ms = 2Hz
 uint8_t health = 0;
 
+///  Attack flag stuff 
+int attack_flag = 4;
+int attack_window = 1000;
+const int pwmPin = 0;       // update this pin as needed 
+const int freq = 50;        // 50Hz required for standard servos
+const int servo_resolution = 14;  // 14-bit max resolution on C3
+// Pre-calculated 14-bit duty cycles for 50Hz (20ms period)
+const int duty_1ms = 819;   // ~0 degrees 
+const int duty_2ms = 1638;  // ~120 degrees 
+unsigned long lastAttackTime = 0;
+int left = 0;
+// In globals
+const int servo_channel = 2;
+
 //=====================================================================
 // TOPHAT HELPING FUNCTIONS
 // =====================================================================
@@ -183,6 +197,15 @@ void PIDcontrol() {
     motor(1);
     last_pid_time = current; //UPDATE TIME
   }
+}
+
+void handleAttack() {
+  if (attack_flag == 0) {
+    attack_flag = 1;
+  } else {
+    attack_flag = 0;
+  }
+  h.sendhtml(body);
 }
 
 //ALL HANDLERS
@@ -296,6 +319,9 @@ void handleMode() {
 }
 
 void setup() {
+  // attack servo
+  ledcAttachChannel(pwmPin, freq, servo_resolution, servo_channel);
+
   for (int i = 0; i < 2; i++) {
     pinMode(Hpin_dir1[i], OUTPUT);
     pinMode(Hpin_dir2[i], OUTPUT);
@@ -337,6 +363,7 @@ void setup() {
   h.attachHandler("/Ki=", handleKi);
   h.attachHandler("/Kd=", handleKd);
   h.attachHandler("/dir=", handleDir);
+  h.attachHandler("/attack", handleAttack);
   h.attachHandler("/",handleRoot);
 
   last_pid_time = millis();
@@ -363,6 +390,20 @@ void manualMode() {
 void loop() {
   // put your main code here, to run repeatedly:
   h.serve(); //WEB REQUEST
+
+  // attack servo 
+  if (attack_flag && (millis() - lastAttackTime >= attack_window)) {
+    lastAttackTime = millis();
+    if (left == 0) {
+      left = 1;
+      ledcWrite(pwmPin, duty_1ms); 
+    } else {
+      left = 0;
+      ledcWrite(pwmPin, duty_2ms); 
+    }
+  } else if (attack_flag == 0) {
+    ledcWrite(pwmPin, 0);
+  }
 
   // TOP HAT PACKET COUNTING CODE
   if (millis() - lastPacketWindow >= windowMs) {

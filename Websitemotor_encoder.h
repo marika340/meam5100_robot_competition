@@ -54,6 +54,8 @@ const char body[] PROGMEM = R"===(
           ontouchstart="sendDir('L')" ontouchend="sendDir('S')">&#9658; Right</button>
           
   <button onclick="sendDir('S')">&#9646; Stop</button>
+
+  <button onclick="attack()">&#9646; Attack</button>
   <br>
 
   <script>
@@ -74,6 +76,10 @@ const char body[] PROGMEM = R"===(
       if (retries > 1) setTimeout(function(){ sendGET(url, retries - 1); }, 300);
     };
     xhttp.send();
+  }
+
+  function attack(dir) {
+    sendGET("/attack");
   }
 
   function sendDir(dir) {
