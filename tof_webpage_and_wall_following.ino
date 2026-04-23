@@ -8,6 +8,10 @@
 //
 // Transition trigger: front ToF reads < wallEngageDist mm
 // You can also force WEBPAGE_CONTROL from web UI via /mode=0
+// 
+// I2C buses:
+//  Wire (default) -> LEFT VL53L0X + RIGHT VL53L0X
+//  Wire1 (SDA=15, SCL=7) -> FRONT VL53L1X
 // =====================================================================
 
 #include <WiFi.h>
@@ -76,8 +80,11 @@ float pid_transition = 0.90;
 #define XSHUT_RIGHT  10
 
 #define ADDR_LEFT    0x30
-#define ADDR_FRONT   0x31
+#define ADDR_FRONT   0x29
 #define ADDR_RIGHT   0x32
+
+#define FRONT_SDA 15
+#define FRONT_SCL 7
 
 Adafruit_VL53L0X loxLeft  = Adafruit_VL53L0X(); //RANGE UP TO 1000 MM
 Adafruit_VL53L1X loxFront = Adafruit_VL53L1X(); //RANGE UP TO 4000 MM
@@ -242,12 +249,26 @@ bool initThreeToFs() {
   // }
   // Serial.println("LEFT VL53L0X OK");
 
+  // --- FRONT VL53L1X on Wire1 (SDA=15, SCL=7) ---
   digitalWrite(XSHUT_FRONT, HIGH); delay(100);
-  if (!loxFront.begin(ADDR_FRONT)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
+  Serial.println("Debugging: digitalWrite(XSHUT_FRONT, HIGH);");
+  if (!loxFront.begin(ADDR_FRONT, &Wire1)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
     Serial.println("Failed: FRONT VL53L1X"); return false;
   }
-  loxFront.startRanging(); //START MEASURE HERE
+  // loxFront.startRanging(); //START MEASURE HERE
   Serial.println("FRONT VL53L1X OK");
+
+  if (!loxFront.startRanging()) {
+    Serial.print(F("FRONT ToF: Couldn't start ranging: "));
+    Serial.println(loxFront.vl_status);
+    while (1)       delay(10);
+  }
+  Serial.println(F("Front ToF: Ranging started"));
+
+  // Front VL53L1X: Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500 ms!
+  loxFront.setTimingBudget(50);
+  Serial.print(F("Timing budget (ms): "));
+  Serial.println(loxFront.getTimingBudget());
   
   // digitalWrite(XSHUT_RIGHT, HIGH); delay(100);
   // if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
@@ -681,6 +702,10 @@ void setup() {
   // I2C for ToF sensors
   Wire.begin();
   Wire.setClock(400000);
+
+  // I2C for front ToF sensor
+  Wire1.begin(FRONT_SDA, FRONT_SCL);
+  Wire1.setClock(400000);
 
   if (!initThreeToFs()) {
     Serial.println("ToF sensor init failed — will run webpage-only mode.");
