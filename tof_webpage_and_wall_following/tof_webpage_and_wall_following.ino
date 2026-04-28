@@ -1,6 +1,7 @@
 // =====================================================================
 // COMBINED: Webpage PID Control + Autonomous Wall Following
 // 
+
 // State machine:
 //   WEBPAGE_CONTROL  -> Manual drive via web UI with PID
 //   TRANSITION       -> Brief stop + reset when wall detected
@@ -9,10 +10,9 @@
 // Transition trigger: front ToF reads < wallEngageDist mm
 // You can also force WEBPAGE_CONTROL from web UI via /mode=0
 // 
-// I2C bus: all three ToFs on Wire (default SDA/SCL)
-//   LEFT  VL53L0X -> 0x30
-//   FRONT VL53L1X -> 0x31
-//   RIGHT VL53L0X -> 0x32
+// I2C buses:
+//  Wire (default) -> LEFT VL53L0X + RIGHT VL53L0X
+//  Wire1 (SDA=15, SCL=7) -> FRONT VL53L1X
 // =====================================================================
 
 #include <WiFi.h>
@@ -29,10 +29,10 @@
 // WIFI CONFIG
 // =====================================================================
 HTML510Server h(80);
-const char* ssid     = "iPhone";
-const char* password = "anhduong";
-//const char* ssid = "TP-Link_8A8C";
-//const char* password = "12488674";
+//const char* ssid     = "iPhone";
+//const char* password = "anhduong";
+const char* ssid = "TP-Link_8A8C";
+const char* password = "12488674";
 IPAddress myIP   (192,168,1,105);
 IPAddress gateway(192,168,1,1);
 IPAddress subnet (255,255,255,0);
@@ -58,7 +58,7 @@ float count_per_revolution = (12.0 * 4 * gear_ratio);
 
 // PID state
 float Kp = 1.4, Ki = 1.0, Kd = 0.0;
-float rpm_desired = 85.0;
+float rpm_desired = 85.0; // 85.0
 float rpm_new     = 0.0;
 float motor_speed[]     = {0, 0};
 int   motor_direction[] = {0, 0};
@@ -89,8 +89,8 @@ float pid_transition = 0.90;
 #define ADDR_FRONT   0x29
 #define ADDR_RIGHT   0x32
 
-#define FRONT_SDA 16
-#define FRONT_SCL 15
+//#define FRONT_SDA 16
+//#define FRONT_SCL 15
 
 Adafruit_VL53L0X loxLeft  = Adafruit_VL53L0X(); //RANGE UP TO 1000 MM
 Adafruit_VL53L1X loxFront = Adafruit_VL53L1X(); //RANGE UP TO 4000 MM
@@ -107,8 +107,8 @@ float dRightFilt = 300.0;
 float alpha      = 0.35;
 
 // Wall-follow parameters
-float desiredWallDist = 180.0;  // mm
-float frontStopDist   = 160.0;  // mm — hard-stop during wall following
+float desiredWallDist = 60.0;  // mm - it used to be 180.0
+float frontStopDist   = 240.0;  // mm — hard-stop during wall following - it used to be 160.0
 float wallLostDist    = 600.0;  // mm
 float wallEngageDist  = 250.0;  // mm — front distance that triggers auto mode
 float switchMargin    = 40.0;
@@ -218,6 +218,10 @@ float readSingleRangeMM(Adafruit_VL53L0X &sensor, VL53L0X_RangingMeasurementData
   return (float)m.RangeMilliMeter;
 }
 
+bool initSensorWithAddress(Adafruit_VL53L0X &sensor, uint8_t addr) {
+  return sensor.begin(addr, false, &Wire);
+}
+
 bool initThreeToFs() {
   pinMode(XSHUT_LEFT,  OUTPUT);
   pinMode(XSHUT_FRONT, OUTPUT);
@@ -227,25 +231,47 @@ bool initThreeToFs() {
   digitalWrite(XSHUT_RIGHT, LOW);
   delay(100);
 
-  // Left ToF
   digitalWrite(XSHUT_LEFT, HIGH); delay(50);
-  if (!loxLeft.begin(ADDR_LEFT, false, &Wire)) {
+  if (!initSensorWithAddress(loxLeft, ADDR_LEFT)) {
     Serial.println("Failed: LEFT VL53L0X"); return false;
   }
-  Serial.println("LEFT VL53L0X OK -> 0x30");
+  Serial.println("LEFT VL53L0X OK");
 
-  // Front ToF
-  digitalWrite(XSHUT_FRONT, HIGH); delay(50);
-  if (!loxFront.begin(ADDR_FRONT, &Wire)) {
+  digitalWrite(XSHUT_RIGHT, HIGH); delay(50);
+  if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
+    Serial.println("Failed: RIGHT VL53L0X"); return false;
+  }
+  Serial.println("RIGHT VL53L0X OK");
+
+  // Wire.beginTransmission(0x29);
+  // byte err = Wire.endTransmission();
+  // Serial.printf("0x29 probe result: %d (0=found, 2=not found)\n", err);
+  // digitalWrite(XSHUT_LEFT, HIGH);
+  // delay(200);
+  // if (!loxLeft.begin(0x29)) {
+  //     Serial.println("Failed: LEFT begin"); return false;
+  // }
+  // if (!loxLeft.setAddress(ADDR_LEFT)) {   // CHECK THIS
+  //     Serial.println("Failed: LEFT setAddress"); return false;
+  // }
+  // Serial.println("LEFT VL53L0X OK");
+
+  // --- FRONT VL53L1X on Wire1 (SDA=15, SCL=7) ---
+  digitalWrite(XSHUT_FRONT, HIGH); delay(100);
+  Serial.println("Debugging: digitalWrite(XSHUT_FRONT, HIGH);");
+  if (!loxFront.begin(0x29, &Wire)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
     Serial.println("Failed: FRONT VL53L1X"); return false;
   }
-  // loxFront.setAddress(ADDR_FRONT);
+  //loxFront.startRanging(); //START MEASURE HERE
+  Serial.println("FRONT VL53L1X OK");
+
   if (!loxFront.startRanging()) {
-    Serial.print("FRONT ToF: Couldn't start ranging: ");
+    Serial.print(F("FRONT ToF: Couldn't start ranging: "));
     Serial.println(loxFront.vl_status);
-    return false;
+    while (1)       delay(10);
   }
   Serial.println(F("Front ToF: Ranging started"));
+  
   //MAKE SURE FRONT TOF IS GIVING READINGS
   if (loxFront.dataReady()) {
     int16_t front_distance = loxFront.distance();
@@ -253,39 +279,25 @@ bool initThreeToFs() {
     Serial.print(front_distance);
     loxFront.clearInterrupt();
   }
+
+  // Front VL53L1X: Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500 ms!
   loxFront.setTimingBudget(50);
-  Serial.print("FRONT VL53L1X OK -> 0x31 | Timing budget (ms): ");
+  Serial.print(F("Timing budget (ms): "));
   Serial.println(loxFront.getTimingBudget());
-
-  // Right ToF
-  digitalWrite(XSHUT_RIGHT, HIGH); delay(50);
-  if (!loxRight.begin(ADDR_RIGHT, false, &Wire)) {
-    Serial.println("Failed: RIGHT VL53L0X"); return false;
-  }
-  Serial.println("RIGHT VL53L0X OK -> 0x32");
-
-  // // --- FRONT VL53L1X on Wire1 (SDA=15, SCL=7) ---
-  // digitalWrite(XSHUT_FRONT, HIGH); delay(100);
-  // Serial.println("Debugging: digitalWrite(XSHUT_FRONT, HIGH);");
-  // if (!loxFront.begin(0x29, &Wire1)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
-  //   Serial.println("Failed: FRONT VL53L1X"); return false;
-  // }
-  // //loxFront.startRanging(); //START MEASURE HERE
-  // Serial.println("FRONT VL53L1X OK");
-
-  // if (!loxFront.startRanging()) {
-  //   Serial.print(F("FRONT ToF: Couldn't start ranging: "));
-  //   Serial.println(loxFront.vl_status);
-  //   while (1)       delay(10);
-  // }
-  // Serial.println(F("Front ToF: Ranging started"));
   
+  // digitalWrite(XSHUT_RIGHT, HIGH); delay(100);
+  // if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
+  //   Serial.println("Failed: RIGHT VL53L0X"); return false;
+  // }
+  // Serial.println("RIGHT VL53L0X OK");
+
   return true;
 }
 
 void readAndFilterToFs() {
   //HANDLE L0X SENSOR
   dLeftFilt  = ema(dLeftFilt,  readSingleRangeMM(loxLeft,  measureLeft),  alpha);
+  //dFrontFilt = ema(dFrontFilt, readSingleRangeMM(loxFront, measureFront), alpha);
   dRightFilt = ema(dRightFilt, readSingleRangeMM(loxRight, measureRight), alpha);
 
   //HANDLE L1X SENSOR
@@ -317,6 +329,8 @@ void PIDcontrol() {
       long current_count = myEnc[i].read();
       float current_rpm  = abs(((current_count - previous_count[i]) /
                                (float)count_per_revolution) * (60.0 / dt));
+      Serial.print("current rpm: ");
+      Serial.println(current_rpm);
       current_rpms[i] = current_rpm;
 
       if (motor_direction[i] == 0) {
@@ -449,8 +463,14 @@ void runWallFollowing() {
   wf_prevTimeMs = now;
 
   float error = 0.0, deriv = 0.0, control = 0.0;
+
+  // update follow direction
+  if (dFrontFilt > frontStopDist) {
+    // Only update if we are not currently executing a corner turn
+    updateFollowDirection(dLeftFilt, dRightFilt);
+  }
   //HANDLE CORNERS
-  // Hard obstacle ahead — stop first, then pivot until clear
+  // Hard obstacle ahead — turn away
   if (dFrontFilt < frontStopDist) {
     // Step 1: full stop and settle
     setDriveRaw(0, 0);
@@ -476,6 +496,7 @@ void runWallFollowing() {
   }
 
   if (followRightWall) {
+    Serial.printf("followRightWall = true");
     error = desiredWallDist - dRightFilt;
     if (dRightFilt > wallLostDist) {
       control = -50; // curve right to search
@@ -484,7 +505,7 @@ void runWallFollowing() {
       control = wf_Kp * error + wf_Kd * deriv;
     }
   } else {
-    //Serial.printf("followRightWall = false");
+    Serial.printf("followRightWall = false");
     error = dLeftFilt - desiredWallDist;
     if (dLeftFilt > wallLostDist) {
       control = 50; // curve left to search
@@ -719,6 +740,10 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000);
 
+  // I2C for front ToF sensor
+  //Wire1.begin(FRONT_SDA, FRONT_SCL);
+  //Wire1.setClock(400000);
+
   if (!initThreeToFs()) {
     Serial.println("ToF sensor init failed — will run webpage-only mode.");
     // Continue without wall following available
@@ -728,7 +753,7 @@ void setup() {
     dLeftFilt  = readSingleRangeMM(loxLeft,  measureLeft);
     //dFrontFilt = readSingleRangeMM(loxFront, measureFront); //HAVE TO USE A DIFFERENT FUNCTION FOR L1X
     dRightFilt = readSingleRangeMM(loxRight, measureRight);
-    // updateFollowDirection(dLeftFilt, dRightFilt);
+    updateFollowDirection(dLeftFilt, dRightFilt);
   }
   wf_prevTimeMs = millis();
 
