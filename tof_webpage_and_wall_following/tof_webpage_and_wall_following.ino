@@ -450,15 +450,28 @@ void runWallFollowing() {
 
   float error = 0.0, deriv = 0.0, control = 0.0;
   //HANDLE CORNERS
-  // Hard obstacle ahead — turn away
+  // Hard obstacle ahead — stop first, then pivot until clear
   if (dFrontFilt < frontStopDist) {
-    if (followRightWall)
-      setDriveRaw(baseSpeed - sharpTurnOffset, baseSpeed + sharpTurnOffset);
-    else
-      setDriveRaw(baseSpeed + sharpTurnOffset, baseSpeed - sharpTurnOffset);
+    // Step 1: full stop and settle
+    setDriveRaw(0, 0);
+    delay(150);
 
-    Serial.printf("[WF] Obstacle! L:%.0f F:%.0f R:%.0f\n", dLeftFilt, dFrontFilt, dRightFilt);
-    //Serial.printf("[WF] Obstacle! F:%.0f R:%.0f\n", dFrontFilt, dRightFilt);
+    // Step 2: pivot in place until front is clear
+    while (dFrontFilt < frontStopDist) {
+      if (followRightWall)
+        setDriveRaw(-sharpTurnOffset, sharpTurnOffset);   // pivot left
+      else
+        setDriveRaw(sharpTurnOffset, -sharpTurnOffset);   // pivot right
+      readAndFilterToFs();
+      delay(30);
+    }
+
+    // Step 3: brief stop before resuming wall follow
+    setDriveRaw(0, 0);
+    delay(100);
+    wf_prevError = 0.0; // reset derivative after sharp turn
+
+    Serial.printf("[WF] Corner cleared! L:%.0f F:%.0f R:%.0f\n", dLeftFilt, dFrontFilt, dRightFilt);
     return;
   }
 
