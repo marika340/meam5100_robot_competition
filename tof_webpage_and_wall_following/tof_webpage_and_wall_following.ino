@@ -9,9 +9,10 @@
 // Transition trigger: front ToF reads < wallEngageDist mm
 // You can also force WEBPAGE_CONTROL from web UI via /mode=0
 // 
-// I2C buses:
-//  Wire (default) -> LEFT VL53L0X + RIGHT VL53L0X
-//  Wire1 (SDA=15, SCL=7) -> FRONT VL53L1X
+// I2C bus: all three ToFs on Wire (default SDA/SCL)
+//   LEFT  VL53L0X -> 0x30
+//   FRONT VL53L1X -> 0x31
+//   RIGHT VL53L0X -> 0x32
 // =====================================================================
 
 #include <WiFi.h>
@@ -217,10 +218,6 @@ float readSingleRangeMM(Adafruit_VL53L0X &sensor, VL53L0X_RangingMeasurementData
   return (float)m.RangeMilliMeter;
 }
 
-bool initSensorWithAddress(Adafruit_VL53L0X &sensor, uint8_t addr) {
-  return sensor.begin(addr, false, &Wire);
-}
-
 bool initThreeToFs() {
   pinMode(XSHUT_LEFT,  OUTPUT);
   pinMode(XSHUT_FRONT, OUTPUT);
@@ -230,47 +227,25 @@ bool initThreeToFs() {
   digitalWrite(XSHUT_RIGHT, LOW);
   delay(100);
 
+  // Left ToF
   digitalWrite(XSHUT_LEFT, HIGH); delay(50);
-  if (!initSensorWithAddress(loxLeft, ADDR_LEFT)) {
+  if (!loxLeft.begin(ADDR_LEFT, false, &Wire)) {
     Serial.println("Failed: LEFT VL53L0X"); return false;
   }
-  Serial.println("LEFT VL53L0X OK");
+  Serial.println("LEFT VL53L0X OK -> 0x30");
 
-  digitalWrite(XSHUT_RIGHT, HIGH); delay(50);
-  if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
-    Serial.println("Failed: RIGHT VL53L0X"); return false;
-  }
-  Serial.println("RIGHT VL53L0X OK");
-
-  // Wire.beginTransmission(0x29);
-  // byte err = Wire.endTransmission();
-  // Serial.printf("0x29 probe result: %d (0=found, 2=not found)\n", err);
-  // digitalWrite(XSHUT_LEFT, HIGH);
-  // delay(200);
-  // if (!loxLeft.begin(0x29)) {
-  //     Serial.println("Failed: LEFT begin"); return false;
-  // }
-  // if (!loxLeft.setAddress(ADDR_LEFT)) {   // CHECK THIS
-  //     Serial.println("Failed: LEFT setAddress"); return false;
-  // }
-  // Serial.println("LEFT VL53L0X OK");
-
-  // --- FRONT VL53L1X on Wire1 (SDA=15, SCL=7) ---
-  digitalWrite(XSHUT_FRONT, HIGH); delay(100);
-  Serial.println("Debugging: digitalWrite(XSHUT_FRONT, HIGH);");
-  if (!loxFront.begin(0x29, &Wire1)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
+  // Front ToF
+  digitalWrite(XSHUT_FRONT, HIGH); delay(50);
+  if (!loxFront.begin(ADDR_FRONT, &Wire)) {
     Serial.println("Failed: FRONT VL53L1X"); return false;
   }
-  //loxFront.startRanging(); //START MEASURE HERE
-  Serial.println("FRONT VL53L1X OK");
-
+  // loxFront.setAddress(ADDR_FRONT);
   if (!loxFront.startRanging()) {
-    Serial.print(F("FRONT ToF: Couldn't start ranging: "));
+    Serial.print("FRONT ToF: Couldn't start ranging: ");
     Serial.println(loxFront.vl_status);
-    while (1)       delay(10);
+    return false;
   }
   Serial.println(F("Front ToF: Ranging started"));
-  
   //MAKE SURE FRONT TOF IS GIVING READINGS
   if (loxFront.dataReady()) {
     int16_t front_distance = loxFront.distance();
@@ -278,25 +253,39 @@ bool initThreeToFs() {
     Serial.print(front_distance);
     loxFront.clearInterrupt();
   }
-
-  // Front VL53L1X: Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500 ms!
   loxFront.setTimingBudget(50);
-  Serial.print(F("Timing budget (ms): "));
+  Serial.print("FRONT VL53L1X OK -> 0x31 | Timing budget (ms): ");
   Serial.println(loxFront.getTimingBudget());
-  
-  // digitalWrite(XSHUT_RIGHT, HIGH); delay(100);
-  // if (!initSensorWithAddress(loxRight, ADDR_RIGHT)) {
-  //   Serial.println("Failed: RIGHT VL53L0X"); return false;
-  // }
-  // Serial.println("RIGHT VL53L0X OK");
 
+  // Right ToF
+  digitalWrite(XSHUT_RIGHT, HIGH); delay(50);
+  if (!loxRight.begin(ADDR_RIGHT, false, &Wire)) {
+    Serial.println("Failed: RIGHT VL53L0X"); return false;
+  }
+  Serial.println("RIGHT VL53L0X OK -> 0x32");
+
+  // // --- FRONT VL53L1X on Wire1 (SDA=15, SCL=7) ---
+  // digitalWrite(XSHUT_FRONT, HIGH); delay(100);
+  // Serial.println("Debugging: digitalWrite(XSHUT_FRONT, HIGH);");
+  // if (!loxFront.begin(0x29, &Wire1)) { //DO NOT NEED INIT SENSOR HELPER FOR VL53L1X
+  //   Serial.println("Failed: FRONT VL53L1X"); return false;
+  // }
+  // //loxFront.startRanging(); //START MEASURE HERE
+  // Serial.println("FRONT VL53L1X OK");
+
+  // if (!loxFront.startRanging()) {
+  //   Serial.print(F("FRONT ToF: Couldn't start ranging: "));
+  //   Serial.println(loxFront.vl_status);
+  //   while (1)       delay(10);
+  // }
+  // Serial.println(F("Front ToF: Ranging started"));
+  
   return true;
 }
 
 void readAndFilterToFs() {
   //HANDLE L0X SENSOR
   dLeftFilt  = ema(dLeftFilt,  readSingleRangeMM(loxLeft,  measureLeft),  alpha);
-  //dFrontFilt = ema(dFrontFilt, readSingleRangeMM(loxFront, measureFront), alpha);
   dRightFilt = ema(dRightFilt, readSingleRangeMM(loxRight, measureRight), alpha);
 
   //HANDLE L1X SENSOR
@@ -716,10 +705,6 @@ void setup() {
   // I2C for all ToF sensors
   Wire.begin();
   Wire.setClock(400000);
-
-  // I2C for front ToF sensor
-  Wire1.begin(FRONT_SDA, FRONT_SCL);
-  Wire1.setClock(400000);
 
   if (!initThreeToFs()) {
     Serial.println("ToF sensor init failed — will run webpage-only mode.");
