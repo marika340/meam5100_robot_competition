@@ -2,13 +2,14 @@
 // tof_modular — modular OOP refactor of tof_webpage_and_wall_following
 //
 // File layout (all in this folder so Arduino IDE auto-compiles them):
-//   Mode.h           - abstract base class for car operating modes
-//   Motor.h/cpp      - one DC motor + encoder
-//   PID.h/cpp        - pure PID controller (no motor coupling)
-//   Drivetrain.h/cpp - 2 motors + 2 PIDs + sync + manual->PID warmup
-//   ToFArray.h/cpp   - 3 ToF sensors + filtering
-//   WallFollow.h/cpp - autonomous wall-following Mode
-//   WebController.h/cpp - WiFi + HTTP UI
+//   Mode.h                - abstract base class for car operating modes
+//   Motor.h/cpp           - one DC motor + encoder
+//   PID.h/cpp             - pure PID controller (no motor coupling)
+//   Drivetrain.h/cpp      - 2 motors + 2 PIDs + sync (low-level service)
+//   ToFArray.h/cpp        - 3 ToF sensors + filtering
+//   ManualDrive.h/cpp     - closed-loop RPM Mode driven by web UI
+//   WallFollow.h/cpp      - autonomous wall-following Mode
+//   WebController.h/cpp   - WiFi + HTTP UI
 //
 // Centering / press-button kept as small free functions for now;
 // promote to Mode subclasses when ready.
@@ -20,6 +21,7 @@
 #include "PID.h"
 #include "Drivetrain.h"
 #include "ToFArray.h"
+#include "ManualDrive.h"
 #include "WallFollow.h"
 #include "WebController.h"
 
@@ -45,32 +47,35 @@ ToFArray tofs(XSHUT_LEFT, XSHUT_FRONT, XSHUT_RIGHT,
               ADDR_LEFT,  ADDR_FRONT,  ADDR_RIGHT);
 
 // Modes
-WallFollow wallFollow(drivetrain, tofs);
+ManualDrive manualDrive(drivetrain);
+WallFollow  wallFollow (drivetrain, tofs);
 
 // WiFi
 // const char* ssid     = "Junyi's iPhone";
 // const char* password = "d6Hc-VSwL-MyCa-P5Hb";
-const char* ssid = "TP-Link_8A8C";
+const char* ssid     = "TP-Link_8A8C";
 const char* password = "12488674";
 
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);
-WebController web(drivetrain, wallFollow, onModeChange);
+WebController web(manualDrive, wallFollow, onModeChange);
 
 // =====================================================================
 // SUPERVISOR / MAIN STATE MACHINE
 // =====================================================================
-enum CarMode { WEBPAGE_CONTROL, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
-CarMode carMode = WEBPAGE_CONTROL;
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
+CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
 //   pendingMode is what TRANSITION will hand off to when its timer
 //   elapses. Lets us reuse TRANSITION for any future drive-mode →
 //   drive-mode handoff (e.g. hardcoded path → wall-follow).
 unsigned long transitionStartMs = 0;
-CarMode pendingMode = WEBPAGE_CONTROL;
+CarMode pendingMode = MANUAL_DRIVE;
 
-// Pointer to currently-active Mode (only WallFollow today)
+// Pointer to currently-active Mode (nullptr for non-Mode states like
+// TRANSITION / CENTERING / PRESSING_BUTTON, which still live as free
+// functions).
 Mode* currentMode = nullptr;
 
 // =====================================================================
@@ -78,15 +83,19 @@ Mode* currentMode = nullptr;
 // =====================================================================
 static void enterMode(CarMode next) {
   if (carMode == next) return;
-  // Exit old
-  if (carMode == WALL_FOLLOWING && currentMode) currentMode->onExit();
+  // Universal onExit + safety stop. onExit calls drivetrain.stop() too,
+  // but the redundancy is harmless and keeps non-Mode states consistent.
+  if (currentMode) {
+    currentMode->onExit();
+    currentMode = nullptr;
+  }
   drivetrain.stop();
 
   carMode = next;
   switch (carMode) {
-    case WEBPAGE_CONTROL:
-      drivetrain.resetClosedLoop();
-      Serial.println("Mode: WEBPAGE_CONTROL");
+    case MANUAL_DRIVE:
+      currentMode = &manualDrive;
+      currentMode->onEnter();
       break;
     case TRANSITION:
       transitionStartMs = millis();
@@ -114,7 +123,7 @@ static void enterTransitionTo(CarMode dest) {
 // Web /mode= callback
 void onModeChange(int mode) {
   switch (mode) {
-    case 0: enterMode(WEBPAGE_CONTROL);          break;
+    case 0: enterMode(MANUAL_DRIVE);             break;
     case 1: enterTransitionTo(WALL_FOLLOWING);   break;
     case 2: enterTransitionTo(CENTERING);        break;
     default: break;
@@ -142,7 +151,12 @@ void setup() {
   // WiFi + handlers
   web.begin(ssid, password);
 
-  Serial0.println("Starting in WEBPAGE_CONTROL mode.");
+  // Boot directly into ManualDrive. carMode is already MANUAL_DRIVE so
+  // enterMode would short-circuit; activate the Mode explicitly.
+  currentMode = &manualDrive;
+  manualDrive.onEnter();
+
+  Serial0.println("Starting in MANUAL_DRIVE mode.");
   Serial0.println("Wall-following engages only via web /mode=1.");
 }
 
@@ -154,8 +168,8 @@ void loop() {
   tofs.update();         // always read distances
 
   switch (carMode) {
-    case WEBPAGE_CONTROL:
-      drivetrain.update();   // closed-loop manual drive (always on)
+    case MANUAL_DRIVE:
+      if (currentMode) currentMode->update();
       break;
 
     case TRANSITION:
@@ -176,7 +190,7 @@ void loop() {
 
     case PRESSING_BUTTON:
       runPressButton();
-      enterMode(WEBPAGE_CONTROL);
+      enterMode(MANUAL_DRIVE);
       break;
   }
 }
@@ -188,9 +202,9 @@ void loop() {
 // Drives forward briefly, holds, retreats. Used after CENTERING locks on.
 static void runPressButton() {
   drivetrain.stop();
-  drivetrain.drive( 80,  80); delay(500);   // approach
-  drivetrain.drive( 50,  50); delay(8000);  // hold for 8s
-  drivetrain.drive(-80, -80); delay(500);   // retreat
+  drivetrain.driveDirect( 80,  80); delay(500);   // approach
+  drivetrain.driveDirect( 50,  50); delay(8000);  // hold for 8s
+  drivetrain.driveDirect(-80, -80); delay(500);   // retreat
   drivetrain.stop();
 }
 
@@ -209,12 +223,12 @@ static void runCentering() {
   bool buttonLeft  = (tofs.left()  < 70.0f && tofs.right() > 200.0f);
   if (buttonRight || buttonLeft) {
     drivetrain.stop(); delay(200);
-    if (buttonRight) drivetrain.drive( 120, -120);
-    else             drivetrain.drive(-120,  120);
+    if (buttonRight) drivetrain.driveDirect( 120, -120);
+    else             drivetrain.driveDirect(-120,  120);
     delay(500);
     drivetrain.stop();
     runPressButton();
-    enterMode(WEBPAGE_CONTROL);
+    enterMode(MANUAL_DRIVE);
     return;
   }
 
@@ -225,13 +239,11 @@ static void runCentering() {
   ctrl = constrain(ctrl, -100.0f, 100.0f);
 
   int baseSpeed = 140;
-  drivetrain.drive(baseSpeed + (int)ctrl, baseSpeed - (int)ctrl);
+  drivetrain.driveDirect(baseSpeed + (int)ctrl, baseSpeed - (int)ctrl);
 
   if (tofs.front() < 100.0f) {
     drivetrain.stop();
     runPressButton();
-    enterMode(WEBPAGE_CONTROL);
+    enterMode(MANUAL_DRIVE);
   }
 }
-
-

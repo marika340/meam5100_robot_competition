@@ -3,8 +3,8 @@
 
 WebController* WebController::s_self = nullptr;
 
-WebController::WebController(Drivetrain& dt, WallFollow& wf, ModeCallback onMode)
-  : _dt(dt), _wf(wf), _onMode(onMode), _h(80)
+WebController::WebController(ManualDrive& md, WallFollow& wf, ModeCallback onMode)
+  : _md(md), _wf(wf), _onMode(onMode), _h(80)
 {
   s_self = this;
 }
@@ -17,9 +17,6 @@ void WebController::begin(const char* ssid, const char* password) {
   while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   Serial.println("\nWiFi connected");
   Serial.print("IP: "); Serial.println(WiFi.localIP());
-
-  // Push initial gains into the drivetrain so first PID tick is sane.
-  _dt.setPIDGains(_kp, _ki, _kd);
 
   _h.begin();
   _h.attachHandler("/motor_speed=", hSpeed);
@@ -52,39 +49,39 @@ void WebController::hDir() {
   else if (d == "B") { L = -1; R = -1; }
   else if (d == "L") { L = -1; R =  1; }
   else if (d == "R") { L =  1; R = -1; }
-  s_self->_dt.setDirection(L, R);
+  s_self->_md.setDirection(L, R);
   s_self->_h.sendhtml(body);
 }
 
 void WebController::hSpeed() {
   if (!s_self) return;
   float rpm = s_self->_h.getVal();
-  s_self->_dt.setTargetRPM(rpm);
-  Serial.printf("Manual warmup. Target RPM: %.1f\n", rpm);
+  s_self->_md.setTargetRPM(rpm);
+  Serial.printf("Manual target RPM: %.1f\n", rpm);
   s_self->_h.sendhtml(body);
 }
 
 void WebController::hKp() {
   if (!s_self) return;
-  s_self->_kp = s_self->_h.getVal();
-  s_self->_dt.setPIDGains(s_self->_kp, s_self->_ki, s_self->_kd);
-  Serial.printf("Kp: %.2f\n", s_self->_kp);
+  float v = s_self->_h.getVal();
+  s_self->_md.setKp(v);
+  Serial.printf("Kp: %.2f\n", v);
   s_self->_h.sendhtml(body);
 }
 
 void WebController::hKi() {
   if (!s_self) return;
-  s_self->_ki = s_self->_h.getVal();
-  s_self->_dt.setPIDGains(s_self->_kp, s_self->_ki, s_self->_kd);
-  Serial.printf("Ki: %.2f\n", s_self->_ki);
+  float v = s_self->_h.getVal();
+  s_self->_md.setKi(v);
+  Serial.printf("Ki: %.2f\n", v);
   s_self->_h.sendhtml(body);
 }
 
 void WebController::hKd() {
   if (!s_self) return;
-  s_self->_kd = s_self->_h.getVal();
-  s_self->_dt.setPIDGains(s_self->_kp, s_self->_ki, s_self->_kd);
-  Serial.printf("Kd: %.2f\n", s_self->_kd);
+  float v = s_self->_h.getVal();
+  s_self->_md.setKd(v);
+  Serial.printf("Kd: %.2f\n", v);
   s_self->_h.sendhtml(body);
 }
 

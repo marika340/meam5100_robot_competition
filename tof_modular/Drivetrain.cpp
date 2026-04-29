@@ -4,7 +4,6 @@ Drivetrain::Drivetrain(Motor& left, Motor& right)
   : _left(left), _right(right),
     _pidL(1.4f, 1.0f, 0.0f, 50.0f),
     _pidR(1.4f, 1.0f, 0.0f, 50.0f),
-    _state(IDLE),
     _targetRPM(0.0f),
     _lastPidMs(0)
 {
@@ -44,7 +43,6 @@ void Drivetrain::setDirection(int leftDir, int rightDir) {
 
 void Drivetrain::setTargetRPM(float rpm) {
   _targetRPM = constrain(rpm, -kRpmScaleRef, kRpmScaleRef);
-  _state     = RUNNING;
   _pidL.reset();
   _pidR.reset();
 
@@ -67,41 +65,32 @@ void Drivetrain::setTargetRPM(float rpm) {
   applyMotor(1);
 }
 
-void Drivetrain::update() {
-  // No target — silence everything.
+void Drivetrain::runPidTick(unsigned long nowMs) {
+  // No target — keep motors stopped and PID state clean.
   if (fabsf(_targetRPM) < 1.0f) {
-    _state = IDLE;
     _motorSpeed[0] = 0; _motorSpeed[1] = 0;
     _pidL.reset();      _pidR.reset();
     applyMotor(0);      applyMotor(1);
     return;
   }
 
-  if (_state == IDLE) return;   // raw drive in effect; caller owns motors
-
-  runPidTick(millis());
-}
-
-void Drivetrain::runPidTick(unsigned long nowMs) {
   float dt = (nowMs - _lastPidMs) / 1000.0f;
   if (dt < kPidPeriodSec) return;
   _lastPidMs = nowMs;
 
   int   resN  = _left.resolution();
-  float scale = (float)resN / kRpmScaleRef;   // maps controller units to PWM duty
+  float scale = (float)resN / kRpmScaleRef;   // controller units -> PWM duty
   float setpt = fabsf(_targetRPM);
-  PID*  pids[2] = {&_pidL, &_pidR};
+  PID*  pids[2]   = {&_pidL, &_pidR};
   Motor* motors[2] = {&_left, &_right};
 
   for (int i = 0; i < 2; i++) {
-    // if direction is zero (motor stopped, then explicitly handle this here)
     if (_dir[i] == 0) {
       _motorSpeed[i] = 0;
       pids[i]->reset();
       applyMotor(i);
       continue;
     }
-    // general motor behavior of finding current RPM, calculating PID, updating motorSpeed 
     _curRPM[i]     = fabsf(motors[i]->computeRPM(nowMs));
     float ctrl     = pids[i]->compute(setpt, _curRPM[i], dt);
     _motorSpeed[i] = constrain(ctrl * scale, 0.0f, (float)resN);
@@ -126,7 +115,6 @@ void Drivetrain::runPidTick(unsigned long nowMs) {
                 setpt, _curRPM[0], _curRPM[1], _motorSpeed[0], _motorSpeed[1]);
 }
 
-// function that actually sets the speed of the motor and sends signal to motor driver
 void Drivetrain::applyMotor(int idx) {
   Motor& m = (idx == 0) ? _left : _right;
   if (_dir[idx] == 0) { m.stop(); return; }
@@ -136,15 +124,18 @@ void Drivetrain::applyMotor(int idx) {
   m.setSpeed(signedDuty, m.resolution());
 }
 
-// Raw drive bypasses the closed-loop state machine.
-void Drivetrain::drive(int leftCmd, int rightCmd, int maxAbs) {
-  _state = IDLE;
+void Drivetrain::driveDirect(int leftCmd, int rightCmd, int maxAbs) {
+  // Raw open-loop drive. Caller (typically an autonomous Mode) is fully
+  // responsible for sequencing; we don't touch closed-loop state here.
   _left.setSpeed(leftCmd,  maxAbs);
   _right.setSpeed(rightCmd, maxAbs);
 }
 
 void Drivetrain::stop() {
-  _state = IDLE;
+  // "Stop and forget": clear target and direction so any later
+  // accidental runPidTick() is a no-op. Caller must re-setTargetRPM
+  // to engage closed-loop again.
+  _targetRPM = 0.0f;
   _dir[0] = 0; _dir[1] = 0;
   _motorSpeed[0] = 0; _motorSpeed[1] = 0;
   _left.stop();
@@ -152,7 +143,6 @@ void Drivetrain::stop() {
 }
 
 void Drivetrain::resetClosedLoop() {
-  _state     = IDLE;
   _targetRPM = 0.0f;
   _dir[0] = 0; _dir[1] = 0;
   _motorSpeed[0] = 0; _motorSpeed[1] = 0;

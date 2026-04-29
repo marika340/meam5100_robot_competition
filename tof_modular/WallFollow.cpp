@@ -27,19 +27,19 @@ void WallFollow::updateFollowDirection() {
 
 void WallFollow::handleCorner() {
   // 1) Stop and settle
-  _dt.drive(0, 0);
+  _dt.driveDirect(0, 0);
   delay(150);
 
   // 2) Pivot in place until front is clear past turnClearDist
   while (_tof.front() < _turnClearDist) {
-    if (_followRight) _dt.drive(-_sharpTurnOffset,  _sharpTurnOffset);
-    else              _dt.drive( _sharpTurnOffset, -_sharpTurnOffset);
+    if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
+    else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
     _tof.update();
     delay(30);
   }
 
   // 3) Brief stop before resuming wall-follow
-  _dt.drive(0, 0);
+  _dt.driveDirect(0, 0);
   delay(100);
   _pid.reset();
 
@@ -91,7 +91,7 @@ void WallFollow::update() {
 
   int leftCmd  = constrain(_baseSpeed - (int)control, _minSpeed, _maxSpeed);
   int rightCmd = constrain(_baseSpeed + (int)control, _minSpeed, _maxSpeed);
-  _dt.drive(leftCmd, rightCmd);
+  _dt.driveDirect(leftCmd, rightCmd);
 
   Serial.printf("[WF] F:%.0f R:%.0f follow:%s err:%.1f ctrl:%.1f\n",
                 _tof.front(), _tof.right(),

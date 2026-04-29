@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "html510.h"
-#include "Drivetrain.h"
+#include "ManualDrive.h"
 #include "WallFollow.h"
 
 // =====================================================================
@@ -16,20 +16,20 @@
 // instantiate one WebController.
 //
 // Wires the web UI to:
-//   - Drivetrain (manual drive, PID gains, auto enable)
-//   - WallFollow (wf gains, sharp-turn offset)
-//   - main.ino  (mode change callback for /mode=)
+//   - ManualDrive (target RPM, direction, PID gains)
+//   - WallFollow  (wf gains, sharp-turn offset)
+//   - main.ino    (mode change callback for /mode=)
 //
 // Caller responsibilities:
 //   - construct ONE WebController, passing all refs and mode callback
-//   - call begin(ssid, password, ip, gw, sn) once in setup()
+//   - call begin(ssid, password) once in setup()
 //   - call serve() every loop iteration
 // =====================================================================
 class WebController {
 public:
   using ModeCallback = void (*)(int newMode);
 
-  WebController(Drivetrain& dt, WallFollow& wf, ModeCallback onMode);
+  WebController(ManualDrive& md, WallFollow& wf, ModeCallback onMode);
 
   // Connect WiFi (blocking) and register all handlers.
   void begin(const char* ssid, const char* password);
@@ -37,7 +37,7 @@ public:
   void serve();
 
 private:
-  Drivetrain&  _dt;
+  ManualDrive& _md;
   WallFollow&  _wf;
   ModeCallback _onMode;
   HTML510Server _h;
@@ -56,12 +56,6 @@ private:
   static void hWfKp();
   static void hWfKd();
   static void hSharpTurn();
-
-  // Mutable PID gains the web UI updates (so /Kp= without /Ki= or /Kd=
-  // still preserves the others). Mirrored into the Drivetrain on change.
-  float _kp = 1.4f;
-  float _ki = 1.0f;
-  float _kd = 0.0f;
 };
 
 #endif // WEB_CONTROLLER_H
