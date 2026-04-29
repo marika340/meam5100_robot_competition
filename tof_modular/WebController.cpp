@@ -27,7 +27,6 @@ void WebController::begin(const char* ssid, const char* password) {
   _h.attachHandler("/Ki=",          hKi);
   _h.attachHandler("/Kd=",          hKd);
   _h.attachHandler("/dir=",         hDir);
-  _h.attachHandler("/Auto=",        hAuto);
   _h.attachHandler("/mode=",        hMode);
   _h.attachHandler("/wf_Kp=",       hWfKp);
   _h.attachHandler("/wf_Kd=",       hWfKd);
@@ -86,14 +85,6 @@ void WebController::hKd() {
   s_self->_kd = s_self->_h.getVal();
   s_self->_dt.setPIDGains(s_self->_kp, s_self->_ki, s_self->_kd);
   Serial.printf("Kd: %.2f\n", s_self->_kd);
-  s_self->_h.sendhtml(body);
-}
-
-void WebController::hAuto() {
-  if (!s_self) return;
-  bool en = (s_self->_h.getVal() == 1);
-  s_self->_dt.setAutoEnable(en);
-  Serial.println(en ? "Auto enabled." : "Auto disabled.");
   s_self->_h.sendhtml(body);
 }
 

@@ -63,11 +63,12 @@ WebController web(drivetrain, wallFollow, onModeChange);
 enum CarMode { WEBPAGE_CONTROL, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
 CarMode carMode = WEBPAGE_CONTROL;
 
-// Wall-engage threshold (front ToF mm to auto-switch to WALL_FOLLOWING)
-float wallEngageDist = 250.0f;
-
-// Transition timing
+// TRANSITION timing + destination
+//   pendingMode is what TRANSITION will hand off to when its timer
+//   elapses. Lets us reuse TRANSITION for any future drive-mode →
+//   drive-mode handoff (e.g. hardcoded path → wall-follow).
 unsigned long transitionStartMs = 0;
+CarMode pendingMode = WEBPAGE_CONTROL;
 
 // Pointer to currently-active Mode (only WallFollow today)
 Mode* currentMode = nullptr;
@@ -104,12 +105,18 @@ static void enterMode(CarMode next) {
   }
 }
 
+// Helper: brief stop, then hand off to dest mode.
+static void enterTransitionTo(CarMode dest) {
+  pendingMode = dest;
+  enterMode(TRANSITION);
+}
+
 // Web /mode= callback
 void onModeChange(int mode) {
   switch (mode) {
-    case 0: enterMode(WEBPAGE_CONTROL); break;
-    case 1: enterMode(WALL_FOLLOWING);  break;
-    case 2: enterMode(CENTERING);       break;
+    case 0: enterMode(WEBPAGE_CONTROL);          break;
+    case 1: enterTransitionTo(WALL_FOLLOWING);   break;
+    case 2: enterTransitionTo(CENTERING);        break;
     default: break;
   }
 }
@@ -136,7 +143,7 @@ void setup() {
   web.begin(ssid, password);
 
   Serial0.println("Starting in WEBPAGE_CONTROL mode.");
-  Serial0.printf("Front ToF < %.0f mm triggers auto wall-following.\n", wallEngageDist);
+  Serial0.println("Wall-following engages only via web /mode=1.");
 }
 
 // =====================================================================
@@ -148,20 +155,14 @@ void loop() {
 
   switch (carMode) {
     case WEBPAGE_CONTROL:
-      // Auto-engage wall-follow when something gets too close ahead.
-      if (tofs.front() < wallEngageDist) {
-        Serial.printf(">>> Wall detected at %.0f mm — TRANSITION\n", tofs.front());
-        enterMode(TRANSITION);
-      } else {
-        drivetrain.update();   // closed-loop manual drive
-      }
+      drivetrain.update();   // closed-loop manual drive (always on)
       break;
 
     case TRANSITION:
-      // Brief stop (300ms) before engaging wall-follow, no delay() blocking.
+      // Brief non-blocking stop, then hand off to whatever mode requested it.
       drivetrain.stop();
       if (millis() - transitionStartMs > 300) {
-        enterMode(WALL_FOLLOWING);
+        enterMode(pendingMode);
       }
       break;
 

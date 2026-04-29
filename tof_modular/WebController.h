@@ -52,7 +52,6 @@ private:
   static void hKp();
   static void hKi();
   static void hKd();
-  static void hAuto();
   static void hMode();
   static void hWfKp();
   static void hWfKd();
