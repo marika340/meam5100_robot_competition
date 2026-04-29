@@ -1,0 +1,236 @@
+// =====================================================================
+// tof_modular — modular OOP refactor of tof_webpage_and_wall_following
+//
+// File layout (all in this folder so Arduino IDE auto-compiles them):
+//   Mode.h           - abstract base class for car operating modes
+//   Motor.h/cpp      - one DC motor + encoder
+//   PID.h/cpp        - pure PID controller (no motor coupling)
+//   Drivetrain.h/cpp - 2 motors + 2 PIDs + sync + manual->PID warmup
+//   ToFArray.h/cpp   - 3 ToF sensors + filtering
+//   WallFollow.h/cpp - autonomous wall-following Mode
+//   WebController.h/cpp - WiFi + HTTP UI
+//
+// Centering / press-button kept as small free functions for now;
+// promote to Mode subclasses when ready.
+// =====================================================================
+
+#include <Arduino.h>
+#include <Wire.h>
+#include "Motor.h"
+#include "PID.h"
+#include "Drivetrain.h"
+#include "ToFArray.h"
+#include "WallFollow.h"
+#include "WebController.h"
+
+// =====================================================================
+// PIN / HARDWARE CONFIG
+// =====================================================================
+
+// Motors: index 0 = LEFT, 1 = RIGHT
+//   PWM pin, dir1, dir2, encA, encB, ledc channel, freq, resolution, counts per revolution
+Motor leftMotor (1,  42, 41, 35, 36, 0,  500, 14, 12.0f * 4 * 34);
+Motor rightMotor(2,  40, 39, 34, 33, 1,  500, 14, 12.0f * 4 * 34);
+
+Drivetrain drivetrain(leftMotor, rightMotor);
+
+// ToF: XSHUT pins + I2C addresses
+#define XSHUT_LEFT   18
+#define XSHUT_FRONT  17
+#define XSHUT_RIGHT  10
+#define ADDR_LEFT    0x30
+#define ADDR_FRONT   0x29
+#define ADDR_RIGHT   0x32
+ToFArray tofs(XSHUT_LEFT, XSHUT_FRONT, XSHUT_RIGHT,
+              ADDR_LEFT,  ADDR_FRONT,  ADDR_RIGHT);
+
+// Modes
+WallFollow wallFollow(drivetrain, tofs);
+
+// WiFi
+// const char* ssid     = "Junyi's iPhone";
+// const char* password = "d6Hc-VSwL-MyCa-P5Hb";
+const char* ssid = "TP-Link_8A8C";
+const char* password = "12488674";
+
+// Forward declaration: web -> main mode change callback
+void onModeChange(int mode);
+WebController web(drivetrain, wallFollow, onModeChange);
+
+// =====================================================================
+// SUPERVISOR / MAIN STATE MACHINE
+// =====================================================================
+enum CarMode { WEBPAGE_CONTROL, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
+CarMode carMode = WEBPAGE_CONTROL;
+
+// Wall-engage threshold (front ToF mm to auto-switch to WALL_FOLLOWING)
+float wallEngageDist = 250.0f;
+
+// Transition timing
+unsigned long transitionStartMs = 0;
+
+// Pointer to currently-active Mode (only WallFollow today)
+Mode* currentMode = nullptr;
+
+// =====================================================================
+// MODE HELPERS
+// =====================================================================
+static void enterMode(CarMode next) {
+  if (carMode == next) return;
+  // Exit old
+  if (carMode == WALL_FOLLOWING && currentMode) currentMode->onExit();
+  drivetrain.stop();
+
+  carMode = next;
+  switch (carMode) {
+    case WEBPAGE_CONTROL:
+      drivetrain.resetClosedLoop();
+      Serial.println("Mode: WEBPAGE_CONTROL");
+      break;
+    case TRANSITION:
+      transitionStartMs = millis();
+      Serial.println("Mode: TRANSITION");
+      break;
+    case WALL_FOLLOWING:
+      currentMode = &wallFollow;
+      currentMode->onEnter();
+      break;
+    case CENTERING:
+      Serial.println("Mode: CENTERING");
+      break;
+    case PRESSING_BUTTON:
+      Serial.println("Mode: PRESSING_BUTTON");
+      break;
+  }
+}
+
+// Web /mode= callback
+void onModeChange(int mode) {
+  switch (mode) {
+    case 0: enterMode(WEBPAGE_CONTROL); break;
+    case 1: enterMode(WALL_FOLLOWING);  break;
+    case 2: enterMode(CENTERING);       break;
+    default: break;
+  }
+}
+
+// =====================================================================
+// SETUP
+// =====================================================================
+void setup() {
+  Serial.begin(115200);
+
+  // Hardware
+  drivetrain.begin();
+
+  Wire.begin();
+  Wire.setClock(400000);
+  if (!tofs.begin()) {
+    Serial0.println("ToF init failed — webpage-only mode.");
+  } else {
+    delay(100);
+    tofs.primeFilters();
+  }
+
+  // WiFi + handlers
+  web.begin(ssid, password);
+
+  Serial0.println("Starting in WEBPAGE_CONTROL mode.");
+  Serial0.printf("Front ToF < %.0f mm triggers auto wall-following.\n", wallEngageDist);
+}
+
+// =====================================================================
+// LOOP
+// =====================================================================
+void loop() {
+  web.serve();           // always serve HTTP
+  tofs.update();         // always read distances
+
+  switch (carMode) {
+    case WEBPAGE_CONTROL:
+      // Auto-engage wall-follow when something gets too close ahead.
+      if (tofs.front() < wallEngageDist) {
+        Serial.printf(">>> Wall detected at %.0f mm — TRANSITION\n", tofs.front());
+        enterMode(TRANSITION);
+      } else {
+        drivetrain.update();   // closed-loop manual drive
+      }
+      break;
+
+    case TRANSITION:
+      // Brief stop (300ms) before engaging wall-follow, no delay() blocking.
+      drivetrain.stop();
+      if (millis() - transitionStartMs > 300) {
+        enterMode(WALL_FOLLOWING);
+      }
+      break;
+
+    case WALL_FOLLOWING:
+      if (currentMode) currentMode->update();
+      break;
+
+    case CENTERING:
+      runCentering();
+      break;
+
+    case PRESSING_BUTTON:
+      runPressButton();
+      enterMode(WEBPAGE_CONTROL);
+      break;
+  }
+}
+
+// =====================================================================
+// LEGACY MODE STUBS — keep behaviour until promoted to Mode subclasses
+// =====================================================================
+
+// Drives forward briefly, holds, retreats. Used after CENTERING locks on.
+static void runPressButton() {
+  drivetrain.stop();
+  drivetrain.drive( 80,  80); delay(500);   // approach
+  drivetrain.drive( 50,  50); delay(8000);  // hold for 8s
+  drivetrain.drive(-80, -80); delay(500);   // retreat
+  drivetrain.stop();
+}
+
+// Quick-and-dirty centering using a local PD on (right - left).
+// Promote to a Mode subclass when you're ready.
+static void runCentering() {
+  static unsigned long lastMs = 0;
+  static PID centerPid(0.7f, 0.0f, 1.2f, 1000.0f);
+  unsigned long now = millis();
+  float dt = (now - lastMs) / 1000.0f;
+  if (dt < 0.01f) return;
+  lastMs = now;
+
+  // Detect button by sudden one-sided drop (ramp width ~482 mm; button thickness ~50 mm).
+  bool buttonRight = (tofs.right() < 70.0f && tofs.left()  > 200.0f);
+  bool buttonLeft  = (tofs.left()  < 70.0f && tofs.right() > 200.0f);
+  if (buttonRight || buttonLeft) {
+    drivetrain.stop(); delay(200);
+    if (buttonRight) drivetrain.drive( 120, -120);
+    else             drivetrain.drive(-120,  120);
+    delay(500);
+    drivetrain.stop();
+    runPressButton();
+    enterMode(WEBPAGE_CONTROL);
+    return;
+  }
+
+  // PD on lateral error: positive => closer to right wall, steer left.
+  float err = tofs.right() - tofs.left();
+  if (fabsf(err) < 10.0f) err = 0.0f;
+  float ctrl = centerPid.compute(0.0f, -err, dt);
+  ctrl = constrain(ctrl, -100.0f, 100.0f);
+
+  int baseSpeed = 140;
+  drivetrain.drive(baseSpeed + (int)ctrl, baseSpeed - (int)ctrl);
+
+  if (tofs.front() < 100.0f) {
+    drivetrain.stop();
+    runPressButton();
+    enterMode(WEBPAGE_CONTROL);
+  }
+}
+
+
