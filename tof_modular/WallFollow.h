@@ -59,8 +59,23 @@ private:
   unsigned long _lastLoopMs  = 0;
   unsigned long _loopPeriodMs = 30;
 
+  // ---- Stall recovery ---------------------------------------------
+  static constexpr float        STALL_RPM_THRESH   = 5.0f;   // RPM below this = stalled
+  static constexpr int          STALL_CMD_THRESH   = 40;     // only watch when commanding >= this
+  static constexpr unsigned long STALL_CONFIRM_MS  = 400;    // stall must persist this long
+  static constexpr unsigned long STALL_REVERSE_MS  = 600;    // how long to drive backward
+
+  enum class StallState { OK, DETECTING, REVERSING };
+  StallState    _stallState     = StallState::OK;
+  unsigned long _stallStartMs   = 0;
+  unsigned long _reverseStartMs = 0;
+  int           _lastLeftCmd    = 0;   // track last commanded speeds for stall check
+  int           _lastRightCmd   = 0;
+
   void updateFollowDirection();
-  void handleCorner();    // in-place pivot until front clears
+  void handleCorner();         // in-place pivot until front clears
+  bool isStalled();     // true when motors are commanded but not moving
+  void handleStall();          // stall state machine, call at top of update()
 };
 
 #endif // WALL_FOLLOW_H

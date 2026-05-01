@@ -53,6 +53,12 @@ public:
   PID&   rightPID() { return _pidR; }
   float  targetRPM() const { return _targetRPM; }
 
+  // Last measured RPM per side (updated by runPidTick; 0 when not in
+  // closed-loop mode, but still valid for stall detection since
+  // driveDirect callers can call these after a computeRPM snapshot).
+  float  leftRPM()  const { return _curRPM[0]; }
+  float  rightRPM() const { return _curRPM[1]; }
+
 private:
   Motor& _left;
   Motor& _right;
