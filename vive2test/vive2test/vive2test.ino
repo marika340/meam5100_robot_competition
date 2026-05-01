@@ -3,17 +3,21 @@
  */
 #include "vive510.h"
 
-#define SIGNALPIN1 4 // pin receiving signal from Vive circuit
+#define SIGNALPINL 4 // pin receiving signal from Vive circuit
+#define SIGNALPINR 5 // pin receiving signal from Vive circuit
 
-Vive510 vive1(SIGNALPIN1);
+Vive510 vive1(SIGNALPINL);
+Vive510 vive2(SIGNALPINR);
 
-#define FREQ 1 // in Hz
 void setup() {
   Serial.begin(115200);
   pinMode(LED_BUILTIN,OUTPUT);
 
   vive1.begin();
-  Serial.println("Vive trackers= started");
+
+  vive2.begin();
+  Serial.println("Vive trackers = started");
+
 }
                  
 uint32_t med3filt(uint32_t a, uint32_t b, uint32_t c) {
@@ -40,7 +44,7 @@ void loop() {
     y0 = vive1.yCoord();
     x = med3filt(x0, oldx1, oldx2);
     y = med3filt(y0, oldy1, oldy2);
-    Serial.printf("X %d, Y %d\n", x, y);
+    Serial.printf("Left: X %d, Left: Y %d\n", x, y);
     digitalWrite(LED_BUILTIN,HIGH);
     if (x > 8000 || y > 8000 || x< 1000 || y < 1000) {
       x=0; y=0;
@@ -48,12 +52,36 @@ void loop() {
     }
   }
   else {
-    // Serial.println("Vive Not Receiving");
+    Serial.println("Vive1 Not Receiving");
     digitalWrite(LED_BUILTIN,LOW);
     x=0;
     y=0; 
     vive1.sync(5); 
   }
+
+   if (vive2.status() == VIVE_RECEIVING) {
+    static uint16_t x0, y0, oldx1, oldx2, oldy1, oldy2;
+    oldx2 = oldx1; oldy2 = oldy1;
+    oldx1 = x0;     oldy1 = y0;
     
-  delay(10);
+    x0 = vive2.xCoord();
+    y0 = vive2.yCoord();
+    x = med3filt(x0, oldx1, oldx2);
+    y = med3filt(y0, oldy1, oldy2);
+    Serial.printf("Right: X %d, Right: Y %d\n", x, y);
+    digitalWrite(LED_BUILTIN,HIGH);
+    if (x > 8000 || y > 8000 || x< 1000 || y < 1000) {
+      x=0; y=0;
+      digitalWrite(LED_BUILTIN,LOW);
+    }
+  }
+  else {
+    Serial.println("Vive2 Not Receiving");
+    digitalWrite(LED_BUILTIN,LOW);
+    x=0;
+    y=0; 
+    vive2.sync(5); 
+  }
+    
+  delay(100);
 }
