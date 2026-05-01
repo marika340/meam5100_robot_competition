@@ -2,8 +2,8 @@
 
 Drivetrain::Drivetrain(Motor& left, Motor& right)
   : _left(left), _right(right),
-    _pidL(1.4f, 1.0f, 0.0f, 50.0f),
-    _pidR(1.4f, 1.0f, 0.0f, 50.0f),
+    _pidL(2.0f, 1.5f, 0.0f, 50.0f),
+    _pidR(2.0f, 1.5f, 0.0f, 50.0f),
     _targetRPM(0.0f),
     _lastPidMs(0)
 {

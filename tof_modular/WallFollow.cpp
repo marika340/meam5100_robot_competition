@@ -10,7 +10,7 @@ void WallFollow::onEnter() {
   _pid.reset();
   _lastLoopMs = millis();
   // Initial follow direction: whichever side is closer.
-  updateFollowDirection();
+  // updateFollowDirection();
   Serial.println(">>> WallFollow::onEnter — engaged.");
 }
 
@@ -18,12 +18,12 @@ void WallFollow::onExit() {
   _dt.stop();
 }
 
-void WallFollow::updateFollowDirection() {
-  float L = _tof.left();
-  float R = _tof.right();
-  if      (R + _switchMargin < L) _followRight = true;
-  else if (L + _switchMargin < R) _followRight = false;
-}
+// void WallFollow::updateFollowDirection() {
+//   float L = _tof.left();
+//   float R = _tof.right();
+//   if      (R + _switchMargin < L) _followRight = true;
+//   else if (L + _switchMargin < R) _followRight = false;
+// }
 
 void WallFollow::handleCorner() {
   // 1) Stop and settle
@@ -35,7 +35,7 @@ void WallFollow::handleCorner() {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
     _tof.update();
-    delay(30);
+    delay(300);
   }
 
   // 3) Brief stop before resuming wall-follow
@@ -54,9 +54,9 @@ void WallFollow::update() {
   _lastLoopMs = now;
 
   // Reassess which wall to follow when the front is unobstructed.
-  if (_tof.front() > _frontStopDist) {
-    updateFollowDirection();
-  }
+  // if (_tof.front() > _frontStopDist) {
+  //   updateFollowDirection();
+  // }
 
   // Hard obstacle ahead — pivot away.
   if (_tof.front() < _frontStopDist) {

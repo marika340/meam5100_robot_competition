@@ -29,7 +29,7 @@ void Motor::begin() {
   ledcWrite(_pwmPin, 0);
 }
 
-// function that receives the desired speed and sends signal to driver 
+// function that receives the desired speed and sends signal to driver
 void Motor::setSpeed(int signedSpeed, int maxAbs) {
   signedSpeed = constrain(signedSpeed, -maxAbs, maxAbs);
   if (signedSpeed > 0) {

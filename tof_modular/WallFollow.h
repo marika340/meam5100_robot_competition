@@ -48,14 +48,14 @@ private:
   float _desiredWallDist  = 60.0f;
   float _frontStopDist    = 280.0f;
   float _wallLostDist     = 600.0f;
-  float _turnClearDist    = 340.0f;
+  float _turnClearDist    = 280.0f;
   float _switchMargin     = 40.0f;
   int   _baseSpeed        = 140;
   int   _minSpeed         = 80;
   int   _maxSpeed         = 220;
-  int   _sharpTurnOffset  = 90;
+  int   _sharpTurnOffset  = 75;
 
-  bool          _followRight = true;
+  bool          _followRight = false;
   unsigned long _lastLoopMs  = 0;
   unsigned long _loopPeriodMs = 30;
 

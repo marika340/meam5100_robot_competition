@@ -5,9 +5,10 @@ ManualDrive::ManualDrive(Drivetrain& dt)
     _active(false),
     _targetRPM(0.0f),
     _dirL(0), _dirR(0),
-    _kp(1.4f), _ki(1.0f), _kd(0.0f)
+    _kp(2.0f), _ki(1.5f), _kd(0.0f)
 {}
 
+// there is a concern that the slider the user sees doesn't reflect the fact it's hard set to 0. User needs to re-enter a speed to update _targetRPM
 void ManualDrive::onEnter() {
   // Clean slate. resetClosedLoop wipes target/dir/PID/encoders.
   _dt.resetClosedLoop();
