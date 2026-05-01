@@ -24,6 +24,7 @@
 #include "ManualDrive.h"
 #include "WallFollow.h"
 #include "WebController.h"
+#include "vive.h"
 
 // =====================================================================
 // PIN / HARDWARE CONFIG
@@ -34,7 +35,7 @@
 Motor leftMotor (1,  42, 41, 35, 36, 0,  500, 14, 12.0f * 4 * 34);
 Motor rightMotor(2,  40, 39, 34, 33, 1,  500, 14, 12.0f * 4 * 34);
 
-Drivetrain drivetrain(leftMotor, rightMotor);
+Drivetrain drivetrain(leftMotor, rightMotor); 
 
 // ToF: XSHUT pins + I2C addresses
 #define XSHUT_LEFT   18
@@ -43,12 +44,18 @@ Drivetrain drivetrain(leftMotor, rightMotor);
 #define ADDR_LEFT    0x30
 #define ADDR_FRONT   0x29
 #define ADDR_RIGHT   0x32
+#define viveLeft     20
+#define viveRight    19
 ToFArray tofs(XSHUT_LEFT, XSHUT_FRONT, XSHUT_RIGHT,
               ADDR_LEFT,  ADDR_FRONT,  ADDR_RIGHT);
 
 // Modes
 ManualDrive manualDrive(drivetrain);
 WallFollow  wallFollow (drivetrain, tofs);
+
+// Vive
+vive leftVive(viveLeft);
+vive rightVive(viveRight);
 
 // WiFi
 // const char* ssid     = "Junyi's iPhone";
@@ -136,6 +143,9 @@ void onModeChange(int mode) {
 void setup() {
   Serial.begin(115200);
 
+  leftVive.begin();
+  rightVive.begin();
+
   // Hardware
   drivetrain.begin();
 
@@ -166,6 +176,12 @@ void setup() {
 void loop() {
   web.serve();           // always serve HTTP
   tofs.update();         // always read distances
+
+  vive::Position leftPos  = leftVive.callibrate();
+  vive::Position rightPos = rightVive.callibrate();
+  Serial0.printf("Left: X %.1f, Left: Y %.1f\n",  leftPos.x,  leftPos.y);
+  Serial0.printf("Right: X %.1f, Right: Y %.1f\n", rightPos.x, rightPos.y);
+
 
   switch (carMode) {
     case MANUAL_DRIVE:
