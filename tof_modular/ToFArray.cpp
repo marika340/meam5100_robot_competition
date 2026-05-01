@@ -40,7 +40,7 @@ bool ToFArray::begin() {
   Serial.println("RIGHT VL53L0X OK");
 
   // ---- FRONT VL53L1X -------------------------------------------------
-  digitalWrite(_xshutF, HIGH); delay(100);
+  digitalWrite(_xshutF, HIGH); delay(50); //CHANGED FROM 100, WANT TO MATCH LEFT AND RIGHT 
   if (!_loxFront.begin(_addrF, &Wire)) {
     Serial.println("Failed: FRONT VL53L1X");
     return false;

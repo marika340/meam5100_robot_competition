@@ -45,10 +45,10 @@ private:
   PID         _pid;             // pure PD, ki=0
 
   // Geometry / tuning
-  float _desiredWallDist  = 60.0f;
+  float _desiredWallDist  = 60.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL
   float _frontStopDist    = 280.0f;
   float _wallLostDist     = 600.0f;
-  float _turnClearDist    = 280.0f;
+  float _turnClearDist    = 285.0f; //CHANGED FROM 280 ORIGINAL
   float _switchMargin     = 40.0f;
   int   _baseSpeed        = 140;
   int   _minSpeed         = 80;

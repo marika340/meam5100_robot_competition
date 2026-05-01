@@ -35,7 +35,8 @@ void WallFollow::handleCorner() {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
     _tof.update();
-    delay(300);
+    delay(277); //CHANGED FROM 300, 200 AND 250 DO OK WITH CORNERS(NEED 3 FIXES) BUT STILL WANT TO AVOID COMPLETELY
+    //288 WORKS BUT AVOID RAMP SOMETIMES
   }
 
   // 3) Brief stop before resuming wall-follow
