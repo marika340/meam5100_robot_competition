@@ -21,12 +21,12 @@ void WallFollow::onExit() {
   _dt.stop();
 }
 
-// void WallFollow::updateFollowDirection() {
-//   float L = _tof.left();
-//   float R = _tof.right();
-//   if      (R + _switchMargin < L) _followRight = true;
-//   else if (L + _switchMargin < R) _followRight = false;
-// }
+void WallFollow::updateFollowDirection() {
+  float L = _tof.left();
+  float R = _tof.right();
+  if      (R + _switchMargin < L) _followRight = true;
+  else if (L + _switchMargin < R) _followRight = false;
+}
 
 void WallFollow::handleCorner() {
   // 1) Stop and settle
@@ -49,6 +49,8 @@ void WallFollow::handleCorner() {
 
   Serial.printf("[WF] Corner cleared. L:%.0f F:%.0f R:%.0f\n",
                 _tof.left(), _tof.front(), _tof.right());
+
+  _cornerExitMs = millis();  // start immunity window
 }
 
 
@@ -116,9 +118,10 @@ void WallFollow::update() {
   // }
 
   // Hard obstacle ahead — pivot away.
-  if (_tof.front() < _frontStopDist) {
-    handleCorner();
-    return;
+  bool immuneToFront = (millis() - _cornerExitMs < RAMP_IMMUNITY_MS);
+  if (!immuneToFront && _tof.front() < _frontStopDist) {
+      handleCorner();
+      return;
   }
 
   // Wall-distance PD. When the wall is lost we substitute a constant

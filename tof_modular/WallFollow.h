@@ -45,7 +45,7 @@ private:
   PID         _pid;             // pure PD, ki=0
 
   // Geometry / tuning
-  float _desiredWallDist  = 60.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL
+  float _desiredWallDist  = 65.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL
   float _frontStopDist    = 280.0f;
   float _wallLostDist     = 600.0f;
   float _turnClearDist    = 285.0f; //CHANGED FROM 280 ORIGINAL
@@ -71,6 +71,9 @@ private:
   unsigned long _reverseStartMs = 0;
   int           _lastLeftCmd    = 0;   // track last commanded speeds for stall check
   int           _lastRightCmd   = 0;
+
+  unsigned long _cornerExitMs = 0;
+  static constexpr unsigned long RAMP_IMMUNITY_MS = 800;
 
   void updateFollowDirection();
   void handleCorner();         // in-place pivot until front clears
