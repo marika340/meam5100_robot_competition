@@ -108,10 +108,16 @@ float alpha      = 0.35;
 
 // Wall-follow parameters
 float desiredWallDist = 60.0;  // mm - it used to be 180.0
-float frontStopDist   = 240.0;  // mm — hard-stop during wall following - it used to be 160.0
+float frontStopDist   = 280.0;  // mm — hard-stop during wall following - it used to be 160.0 - changed from 240
+// CHANGED TO 320 BUT BEHAVES LIKE 240 ?
 float wallLostDist    = 600.0;  // mm
 float wallEngageDist  = 250.0;  // mm — front distance that triggers auto mode
 float switchMargin    = 40.0;
+//ADD THIS FOR CORNER HYSTERESIS
+float turnClearDist   = 280; //mm Distance to end the turn (Must be > frontStopDist) 340.0
+//TRIED 380 CLEAR DISTANCE, DID NOT WORK WELL FOR THE BRIDGE CORNERS
+//TRIED 340 CLEAR AND 280 STOP DIST, WORKS DECENT
+//TRIED 320 CLEAR AND 240 STOP DIST, NOT AS GOOD AS 340 AND 280 COMBINATION
 
 float wf_Kp = 0.7, wf_Kd = 1.2;
 int   baseSpeed       = 140;
@@ -448,6 +454,7 @@ void handleCorner(bool LeftTurn) {
   }
   wf_prevError = 0.0; //RESET PID ERROR
 }
+
 //HANDLE WALL FOLLOWING
 void runWallFollowing() {
   static unsigned long lastLoop = 0;
@@ -477,7 +484,7 @@ void runWallFollowing() {
     delay(150);
 
     // Step 2: pivot in place until front is clear
-    while (dFrontFilt < frontStopDist) {
+    while (dFrontFilt < turnClearDist) { //CHANGED HERE
       if (followRightWall)
         setDriveRaw(-sharpTurnOffset, sharpTurnOffset);   // pivot left
       else
