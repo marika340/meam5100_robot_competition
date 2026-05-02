@@ -45,9 +45,9 @@ vive::Position vive::callibrate() {
     x = med3filt(x0, oldx1, oldx2);
     y = med3filt(y0, oldy1, oldy2);
     // Serial.printf("X %d, Y %d\n", x, y);
-    if (x > 8000 || y > 8000 || x < 1000 || y < 1000) {
-      x = 0; y = 0;
-    }
+    // if (x > 8000 || y > 8000 || x < 1000 || y < 1000) {
+    //   x = 0; y = 0;
+    // }
   }
   else {
     // Serial.println("Vive Not Receiving");

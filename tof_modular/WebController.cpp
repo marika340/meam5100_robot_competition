@@ -36,9 +36,7 @@ void WebController::begin(const char* ssid, const char* password) {
 
 void WebController::serve() { _h.serve(); }
 
-// =====================================================================
 // Static trampolines — each fetches the live instance and forwards.
-// =====================================================================
 void WebController::hRoot() {
   if (!s_self) return;
   s_self->_h.sendhtml(body);
@@ -47,7 +45,6 @@ void WebController::hRoot() {
 void WebController::hDir() {
   if (!s_self) return;
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   String d = s_self->_h.getText();
   int L = 0, R = 0;
   if      (d == "F") { L =  1; R =  1; }
@@ -60,10 +57,7 @@ void WebController::hDir() {
 
 void WebController::hSpeed() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   float rpm = s_self->_h.getVal();
   s_self->_md.setTargetRPM(rpm);
   Serial.printf("Manual target RPM: %.1f\n", rpm);
@@ -72,10 +66,7 @@ void WebController::hSpeed() {
 
 void WebController::hKp() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   float v = s_self->_h.getVal();
   s_self->_md.setKp(v);
   Serial.printf("Kp: %.2f\n", v);
@@ -84,10 +75,7 @@ void WebController::hKp() {
 
 void WebController::hKi() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   float v = s_self->_h.getVal();
   s_self->_md.setKi(v);
   Serial.printf("Ki: %.2f\n", v);
@@ -96,10 +84,7 @@ void WebController::hKi() {
 
 void WebController::hKd() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   float v = s_self->_h.getVal();
   s_self->_md.setKd(v);
   Serial.printf("Kd: %.2f\n", v);
@@ -108,10 +93,7 @@ void WebController::hKd() {
 
 void WebController::hMode() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   int mode = s_self->_h.getVal();
   if (s_self->_onMode) s_self->_onMode(mode);
   s_self->_h.sendhtml(body);
@@ -119,10 +101,7 @@ void WebController::hMode() {
 
 void WebController::hWfKp() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   float v = s_self->_h.getVal();
   s_self->_wf.setKp(v);
   Serial.printf("wf_Kp: %.2f\n", v);
@@ -131,10 +110,7 @@ void WebController::hWfKp() {
 
 void WebController::hWfKd() {
   if (!s_self) return;
-<<<<<<< HEAD
-=======
   incrementPacketCount();
->>>>>>> tof_modular_attacket_tophat
   float v = s_self->_h.getVal();
   s_self->_wf.setKd(v);
   Serial.printf("wf_Kd: %.2f\n", v);

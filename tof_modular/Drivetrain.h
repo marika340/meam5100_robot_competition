@@ -5,7 +5,6 @@
 #include "Motor.h"
 #include "PID.h"
 
-// =====================================================================
 // Drivetrain: low-level service. Owns two Motors and two per-side PID
 // controllers, plus the primitives needed by Modes that drive the car.
 // Drivetrain has NO opinion about *which* mode is active — Modes decide
@@ -26,7 +25,6 @@
 //
 // resetClosedLoop() wipes target/direction/PID state and zeros encoders.
 // Called by ManualDrive::onEnter for a clean slate.
-// =====================================================================
 class Drivetrain {
 public:
   Drivetrain(Motor& left, Motor& right);

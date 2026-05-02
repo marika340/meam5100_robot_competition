@@ -1,7 +1,6 @@
 #ifndef MODE_H
 #define MODE_H
 
-// =====================================================================
 // Mode: abstract base class for all car operating modes.
 //
 // Lifecycle:
@@ -12,7 +11,6 @@
 // All future modes (WallFollow, ViveMotion, GeneralMotion, Centering,
 // PressButton, ...) should derive from this so the main loop can drive
 // them through a uniform interface.
-// =====================================================================
 class Mode {
 public:
   virtual ~Mode() {}

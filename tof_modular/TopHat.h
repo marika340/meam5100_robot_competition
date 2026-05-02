@@ -4,10 +4,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-// =====================================================================
 // TopHat: Requests health from tophat and sends number of WiFi packets used 
 //at 2 Hz. Stops all motors from running if health = 0
-// =====================================================================
+
 static int SDA_pin = 11;
 static int SCL_pin = 14;
 extern int packetCounter;

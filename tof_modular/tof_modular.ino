@@ -1,4 +1,3 @@
-// =====================================================================
 // tof_modular — modular OOP refactor of tof_webpage_and_wall_following
 //
 // File layout (all in this folder so Arduino IDE auto-compiles them):
@@ -13,7 +12,6 @@
 //
 // Centering / press-button kept as small free functions for now;
 // promote to Mode subclasses when ready.
-// =====================================================================
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -28,9 +26,7 @@
 #include "TopHat.h"
 #include "Attacker.h"
 
-// =====================================================================
 // PIN / HARDWARE CONFIG
-// =====================================================================
 
 // Motors: index 0 = LEFT, 1 = RIGHT
 //   PWM pin, dir1, dir2, encA, encB, ledc channel, freq, resolution, counts per revolution
@@ -79,9 +75,7 @@ uint8_t health = 0;
 // Attack Arm Hardware
 Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 
-// =====================================================================
 // SUPERVISOR / MAIN STATE MACHINE
-// =====================================================================
 enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
 CarMode carMode = MANUAL_DRIVE;
 
@@ -97,9 +91,7 @@ CarMode pendingMode = MANUAL_DRIVE;
 // functions).
 Mode* currentMode = nullptr;
 
-// =====================================================================
 // MODE HELPERS
-// =====================================================================
 static void enterMode(CarMode next) {
   if (carMode == next) return;
   // Universal onExit + safety stop. onExit calls drivetrain.stop() too,
@@ -149,96 +141,8 @@ void onModeChange(int mode) {
   }
 }
 
-// =====================================================================
-// SETUP
-// =====================================================================
-void setup() {
-  Serial.begin(115200);
 
-  leftVive.begin();
-  rightVive.begin();
-
-  // Hardware
-  drivetrain.begin();
-  arm.begin();
-
-  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
-
-  Wire.begin();
-  Wire.setClock(400000);
-  if (!tofs.begin()) {
-    Serial0.println("ToF init failed — webpage-only mode.");
-  } else {
-    delay(100);
-    tofs.primeFilters();
-  }
-
-  // WiFi + handlers
-  web.begin(ssid, password);
-
-  // Boot directly into ManualDrive. carMode is already MANUAL_DRIVE so
-  // enterMode would short-circuit; activate the Mode explicitly.
-  currentMode = &manualDrive;
-  manualDrive.onEnter();
-
-  Serial0.println("Starting in MANUAL_DRIVE mode.");
-  Serial0.println("Wall-following engages only via web /mode=1.");
-}
-
-// =====================================================================
-// LOOP
-// =====================================================================
-void loop() {
-  web.serve();           // always serve HTTP
-  tofs.update();         // always read distances
-
-  vive::Position leftPos  = leftVive.callibrate();
-  vive::Position rightPos = rightVive.callibrate();
-  Serial0.printf("Left: X %.1f, Left: Y %.1f\n",  leftPos.x,  leftPos.y);
-  Serial0.printf("Right: X %.1f, Right: Y %.1f\n", rightPos.x, rightPos.y);
-
-
-  switch (carMode) {
-  arm.update();
-
-  TopHat();
-
-  if (health == 0) {
-    drivetrain.stop();
-    arm.stop();
-  } else { 
-    switch (carMode) {
-    case MANUAL_DRIVE:
-      if (currentMode) currentMode->update();
-      break;
-
-    case TRANSITION:
-      // Brief non-blocking stop, then hand off to whatever mode requested it.
-      drivetrain.stop();
-      if (millis() - transitionStartMs > 300) {
-        enterMode(pendingMode);
-      }
-      break;
-
-    case WALL_FOLLOWING:
-      if (currentMode) currentMode->update();
-      break;
-
-    case CENTERING:
-      runCentering();
-      break;
-
-    case PRESSING_BUTTON:
-      runPressButton();
-      enterMode(MANUAL_DRIVE);
-      break;
-    }
-  }
-}
-
-// =====================================================================
 // LEGACY MODE STUBS — keep behaviour until promoted to Mode subclasses
-// =====================================================================
 
 // Drives forward briefly, holds, retreats. Used after CENTERING locks on.
 static void runPressButton() {
@@ -287,4 +191,87 @@ static void runCentering() {
     runPressButton();
     enterMode(MANUAL_DRIVE);
   }
+}
+
+
+// SETUP
+void setup() {
+  Serial.begin(115200);
+
+  leftVive.begin();
+  rightVive.begin();
+
+  // Hardware
+  drivetrain.begin();
+  arm.begin();
+
+  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
+
+  Wire.begin();
+  Wire.setClock(400000);
+  if (!tofs.begin()) {
+    Serial0.println("ToF init failed — webpage-only mode.");
+  } else {
+    delay(100);
+    tofs.primeFilters();
+  }
+
+  // WiFi + handlers
+  web.begin(ssid, password);
+
+  // Boot directly into ManualDrive. carMode is already MANUAL_DRIVE so
+  // enterMode would short-circuit; activate the Mode explicitly.
+  currentMode = &manualDrive;
+  manualDrive.onEnter();
+
+  Serial0.println("Starting in MANUAL_DRIVE mode.");
+  Serial0.println("Wall-following engages only via web /mode=1.");
+}
+
+// LOOP
+void loop() {
+  web.serve();           // always serve HTTP
+  tofs.update();         // always read distances
+
+  vive::Position leftPos  = leftVive.callibrate();
+  vive::Position rightPos = rightVive.callibrate();
+  Serial0.printf("Left: X %.1f, Left: Y %.1f\n",  leftPos.x,  leftPos.y);
+  Serial0.printf("Right: X %.1f, Right: Y %.1f\n", rightPos.x, rightPos.y);
+
+  arm.update();
+
+  TopHat();
+
+
+  if (health == 0) {
+    drivetrain.stop();
+    arm.stop();
+  } else { 
+      switch (carMode) {
+          case MANUAL_DRIVE:
+            if (currentMode) currentMode->update();
+            break;
+
+          case TRANSITION:
+            // Brief non-blocking stop, then hand off to whatever mode requested it.
+            drivetrain.stop();
+            if (millis() - transitionStartMs > 300) {
+              enterMode(pendingMode);
+            }
+            break;
+
+          case WALL_FOLLOWING:
+            if (currentMode) currentMode->update();
+            break;
+
+          case CENTERING:
+            runCentering();
+            break;
+
+          case PRESSING_BUTTON:
+            runPressButton();
+            enterMode(MANUAL_DRIVE);
+            break;
+        }
+    }
 }
