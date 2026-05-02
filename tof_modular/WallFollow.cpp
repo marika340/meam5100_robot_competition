@@ -9,6 +9,9 @@ void WallFollow::onEnter() {
   _dt.stop();
   _pid.reset();
   _lastLoopMs = millis();
+  _stallState   = StallState::OK;
+  _lastLeftCmd  = 0;
+  _lastRightCmd = 0;
   // Initial follow direction: whichever side is closer.
   // updateFollowDirection();
   Serial.println(">>> WallFollow::onEnter — engaged.");
@@ -18,12 +21,12 @@ void WallFollow::onExit() {
   _dt.stop();
 }
 
-// void WallFollow::updateFollowDirection() {
-//   float L = _tof.left();
-//   float R = _tof.right();
-//   if      (R + _switchMargin < L) _followRight = true;
-//   else if (L + _switchMargin < R) _followRight = false;
-// }
+void WallFollow::updateFollowDirection() {
+  float L = _tof.left();
+  float R = _tof.right();
+  if      (R + _switchMargin < L) _followRight = true;
+  else if (L + _switchMargin < R) _followRight = false;
+}
 
 void WallFollow::handleCorner() {
   // 1) Stop and settle
@@ -35,7 +38,8 @@ void WallFollow::handleCorner() {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
     _tof.update();
-    delay(300);
+    delay(277); //CHANGED FROM 300, 200 AND 250 DO OK WITH CORNERS(NEED 3 FIXES) BUT STILL WANT TO AVOID COMPLETELY
+    //288 WORKS BUT AVOID RAMP SOMETIMES
   }
 
   // 3) Brief stop before resuming wall-follow
@@ -45,9 +49,64 @@ void WallFollow::handleCorner() {
 
   Serial.printf("[WF] Corner cleared. L:%.0f F:%.0f R:%.0f\n",
                 _tof.left(), _tof.front(), _tof.right());
+
+  _cornerExitMs = millis();  // start immunity window
+}
+
+
+// ── Stall detection ──────────────────────────────────────────────────────
+bool WallFollow::isStalled() {
+  bool cmdHighEnough = (abs(_lastLeftCmd)  > STALL_CMD_THRESH ||
+                        abs(_lastRightCmd) > STALL_CMD_THRESH);
+  unsigned long now = millis();
+  float rpmL = fabsf(_dt.left().computeRPM(now));
+  float rpmR = fabsf(_dt.right().computeRPM(now));
+  bool rpmTooLow = (fabsf(rpmL) < STALL_RPM_THRESH &&
+                   fabsf(rpmR) < STALL_RPM_THRESH);
+  return cmdHighEnough && rpmTooLow;
+}
+
+// ── Stall recovery state machine ─────────────────────────────────────────
+void WallFollow::handleStall() {
+  unsigned long now = millis();
+  switch (_stallState) {
+
+    case StallState::OK:
+      if (isStalled()) {
+        _stallState   = StallState::DETECTING;
+        _stallStartMs = now;
+        Serial.println("[WF] Stall suspected — confirming...");
+      }
+      break;
+
+    case StallState::DETECTING:
+      if (!isStalled()) {
+        _stallState = StallState::OK;   // false alarm
+      } else if (now - _stallStartMs >= STALL_CONFIRM_MS) {
+        Serial.println("[WF] Stall confirmed — reversing!");
+        _dt.driveDirect(-100, -100);
+        _stallState     = StallState::REVERSING;
+        _reverseStartMs = now;
+      }
+      break;
+
+    case StallState::REVERSING:
+      if (now - _reverseStartMs >= STALL_REVERSE_MS) {
+        _dt.stop();
+        delay(150);
+        _pid.reset();
+        _stallState = StallState::OK;
+        Serial.println("[WF] Stall recovery done — resuming.");
+      }
+      break;
+  }
 }
 
 void WallFollow::update() {
+  // Run stall recovery every loop tick (not gated by _loopPeriodMs).
+  handleStall();
+  if (_stallState == StallState::REVERSING) return;
+
   unsigned long now = millis();
   if (now - _lastLoopMs < _loopPeriodMs) return;
   float dt = (now - _lastLoopMs) / 1000.0f;
@@ -59,9 +118,10 @@ void WallFollow::update() {
   // }
 
   // Hard obstacle ahead — pivot away.
-  if (_tof.front() < _frontStopDist) {
-    handleCorner();
-    return;
+  bool immuneToFront = (millis() - _cornerExitMs < RAMP_IMMUNITY_MS);
+  if (!immuneToFront && _tof.front() < _frontStopDist) {
+      handleCorner();
+      return;
   }
 
   // Wall-distance PD. When the wall is lost we substitute a constant
@@ -91,6 +151,8 @@ void WallFollow::update() {
 
   int leftCmd  = constrain(_baseSpeed - (int)control, _minSpeed, _maxSpeed);
   int rightCmd = constrain(_baseSpeed + (int)control, _minSpeed, _maxSpeed);
+  _lastLeftCmd  = leftCmd;
+  _lastRightCmd = rightCmd;
   _dt.driveDirect(leftCmd, rightCmd);
 
   Serial.printf("[WF] F:%.0f R:%.0f follow:%s err:%.1f ctrl:%.1f\n",

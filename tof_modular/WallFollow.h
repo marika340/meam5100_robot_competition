@@ -45,10 +45,10 @@ private:
   PID         _pid;             // pure PD, ki=0
 
   // Geometry / tuning
-  float _desiredWallDist  = 60.0f;
+  float _desiredWallDist  = 65.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL
   float _frontStopDist    = 280.0f;
   float _wallLostDist     = 600.0f;
-  float _turnClearDist    = 280.0f;
+  float _turnClearDist    = 285.0f; //CHANGED FROM 280 ORIGINAL
   float _switchMargin     = 40.0f;
   int   _baseSpeed        = 140;
   int   _minSpeed         = 80;
@@ -59,8 +59,26 @@ private:
   unsigned long _lastLoopMs  = 0;
   unsigned long _loopPeriodMs = 30;
 
+  // ---- Stall recovery ---------------------------------------------
+  static constexpr float        STALL_RPM_THRESH   = 5.0f;   // RPM below this = stalled
+  static constexpr int          STALL_CMD_THRESH   = 40;     // only watch when commanding >= this
+  static constexpr unsigned long STALL_CONFIRM_MS  = 400;    // stall must persist this long
+  static constexpr unsigned long STALL_REVERSE_MS  = 600;    // how long to drive backward
+
+  enum class StallState { OK, DETECTING, REVERSING };
+  StallState    _stallState     = StallState::OK;
+  unsigned long _stallStartMs   = 0;
+  unsigned long _reverseStartMs = 0;
+  int           _lastLeftCmd    = 0;   // track last commanded speeds for stall check
+  int           _lastRightCmd   = 0;
+
+  unsigned long _cornerExitMs = 0;
+  static constexpr unsigned long RAMP_IMMUNITY_MS = 800;
+
   void updateFollowDirection();
-  void handleCorner();    // in-place pivot until front clears
+  void handleCorner();         // in-place pivot until front clears
+  bool isStalled();     // true when motors are commanded but not moving
+  void handleStall();          // stall state machine, call at top of update()
 };
 
 #endif // WALL_FOLLOW_H
