@@ -18,6 +18,7 @@ const char body[] PROGMEM = R"===(
         h3 { margin: 15px 0 10px 0; color: #555; }
         hr { margin: 20px 0; border: none; border-top: 1px solid #ccc; }
         .d-pad { display: inline-block; width: 220px; }
+        .attack-btn { background-color: #ff4444; color: white; height: 60px; width: 100%; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -33,6 +34,7 @@ const char body[] PROGMEM = R"===(
                 <button class="dir-btn" onmousedown="sendDir('B')" onmouseup="sendDir('S')" ontouchstart="sendDir('B')" ontouchend="sendDir('S')">Back</button>
             </div>
             <button onclick="sendDir('S')" style="background-color: #f44336; color: white;">Force Stop</button>
+            <button class="attack-btn" onclick="sendGET('/attack')">ATTACK ARM</button>
         </div>
         <div class="side-col">
             <div class="slider-group">RPM: <input type="range" id="rpmSlider" min="0" max="130" value="85"><span id="rpmOut">85</span></div>

@@ -16,7 +16,7 @@
 // =====================================================================
 
 #include <Arduino.h>
-// #include <Wire.h>
+#include <Wire.h>
 #include "Motor.h"
 #include "PID.h"
 #include "Drivetrain.h"
@@ -25,6 +25,8 @@
 #include "WallFollow.h"
 #include "WebController.h"
 #include "vive.h"
+#include "TopHat.h"
+#include "Attacker.h"
 
 // =====================================================================
 // PIN / HARDWARE CONFIG
@@ -35,7 +37,8 @@
 Motor leftMotor (1,  42, 41, 35, 36, 0,  500, 14, 12.0f * 4 * 34);
 Motor rightMotor(2,  40, 39, 34, 33, 1,  500, 14, 12.0f * 4 * 34);
 
-Drivetrain drivetrain(leftMotor, rightMotor); 
+
+Drivetrain drivetrain(leftMotor, rightMotor);
 
 // ToF: XSHUT pins + I2C addresses
 #define XSHUT_LEFT   18
@@ -46,6 +49,7 @@ Drivetrain drivetrain(leftMotor, rightMotor);
 #define ADDR_RIGHT   0x32
 #define viveLeft     20
 #define viveRight    19
+
 ToFArray tofs(XSHUT_LEFT, XSHUT_FRONT, XSHUT_RIGHT,
               ADDR_LEFT,  ADDR_FRONT,  ADDR_RIGHT);
 
@@ -57,6 +61,7 @@ WallFollow  wallFollow (drivetrain, tofs);
 vive leftVive(viveLeft);
 vive rightVive(viveRight);
 
+
 // WiFi
 // const char* ssid     = "Junyi's iPhone";
 // const char* password = "d6Hc-VSwL-MyCa-P5Hb";
@@ -66,6 +71,13 @@ const char* password = "12488674";
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);
 WebController web(manualDrive, wallFollow, onModeChange);
+
+// Top Hat Packer Updater
+int packetCounter = 0;
+uint8_t health = 0;
+
+// Attack Arm Hardware
+Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 
 // =====================================================================
 // SUPERVISOR / MAIN STATE MACHINE
@@ -148,6 +160,9 @@ void setup() {
 
   // Hardware
   drivetrain.begin();
+  arm.begin();
+
+  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
 
   Wire.begin();
   Wire.setClock(400000);
@@ -184,6 +199,15 @@ void loop() {
 
 
   switch (carMode) {
+  arm.update();
+
+  TopHat();
+
+  if (health == 0) {
+    drivetrain.stop();
+    arm.stop();
+  } else { 
+    switch (carMode) {
     case MANUAL_DRIVE:
       if (currentMode) currentMode->update();
       break;
@@ -208,6 +232,7 @@ void loop() {
       runPressButton();
       enterMode(MANUAL_DRIVE);
       break;
+    }
   }
 }
 

@@ -56,6 +56,7 @@ private:
   static void hWfKp();
   static void hWfKd();
   static void hSharpTurn();
+  static void hAttack();
 };
 
 #endif // WEB_CONTROLLER_H
