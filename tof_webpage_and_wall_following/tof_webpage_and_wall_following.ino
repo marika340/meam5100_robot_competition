@@ -135,6 +135,7 @@ unsigned long transitionStartTime = 0;
 // =====================================================================
 enum CarMode { WEBPAGE_CONTROL, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
 CarMode carMode = WEBPAGE_CONTROL;
+// CarMode carMode = WALL_FOLLOWING;
 
 // =====================================================================
 // LOW-LEVEL MOTOR HELPERS
@@ -688,6 +689,7 @@ void handleMode() {
   int mode = h.getVal();
   if (mode == 0) {
     carMode = WEBPAGE_CONTROL;
+    // carMode = WALL_FOLLOWING;
     stopAllMotors();
     pid_enable = false; auto_enable = true; //WANT AUTO MODE WITH MANUAL WARM UP TO PID 
     rpm_desired = 0.0;
