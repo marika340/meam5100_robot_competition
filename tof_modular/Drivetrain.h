@@ -39,6 +39,25 @@ public:
 
   // ---- Raw drive (open-loop) primitives ---------------------------
   void  driveDirect(int leftCmd, int rightCmd, int maxAbs = 255);
+
+  // ---- Non-blocking straight-move (dead reckoning) ----------------
+  // Usage:
+  //   drivetrain.straightMove(48);              // kick off (inches; sign = dir)
+  //   while (...) {
+  //     if (drivetrain.updateStraightMove(millis())) { /* done */ }
+  //     web.serve(); tofs.update(); ...         // main loop keeps running
+  //   }
+  void  straightMove(int desiredDist);
+  bool  updateStraightMove(unsigned long nowMs);   // returns true when done (or inactive)
+  bool  isStraightMoveActive() const { return _smActive; }
+
+  // ---- Non-blocking in-place 90° pivot ----------------------------
+  // Same shape as straightMove: kick + poll. dir==0 -> CW, anything else -> CCW.
+  // (Naming is historical; if you want clarity, switch callers to an enum.)
+  void  rotateNinety(int dir);
+  bool  updateRotateNinety(unsigned long nowMs);   // returns true when done (or inactive)
+  bool  isRotateActive() const { return _rotActive; }
+
   void  stop();
 
   // Wipe all closed-loop state + reset encoders.
@@ -69,6 +88,22 @@ private:
   float  _curRPM[2];
 
   unsigned long _lastPidMs;
+
+  // ---- Straight-move state (non-blocking) -------------------------
+  bool          _smActive       = false;
+  int           _smDir          = 0;       // +1 forward, -1 backward
+  long          _smTargetCounts = 0;
+  long          _smLeftStart    = 0;
+  long          _smRightStart   = 0;
+  unsigned long _smLastTickMs   = 0;
+
+  // ---- Rotate-90 state (non-blocking) -----------------------------
+  bool          _rotActive      = false;
+  int           _rotDir         = 0;       // 0 -> CW (matches old API)
+  long          _rotTargetCounts = 0;
+  long          _rotLeftStart   = 0;
+  long          _rotRightStart  = 0;
+  unsigned long _rotLastTickMs  = 0;
 
   static constexpr float kPidPeriodSec = 0.100f;   // 100 ms PID tick
   static constexpr float kSyncGain     = 0.005f;

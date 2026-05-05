@@ -51,6 +51,8 @@ const char body[] PROGMEM = R"===(
             <button id="m0" onclick="setMode(0)">Stop / Manual</button>
             <button id="m1" onclick="setMode(1)">Wall Follow</button>
             <button id="m2" onclick="setMode(2)">Centering</button>
+            <button id="m3" onclick="setMode(3)" style="background-color:#9c27b0; color:white;">Low Tower</button>
+            <button id="straightButton" onclick="sendGET('/straight=12')" style="background-color:#2196F3; color:white;">Straight Movement</button>
         </div>
         <div class="side-col">
             <div class="slider-group">wf_Kp: <input type="range" id="wfkpslider" min="0" max="5" step="0.05" value="0.7"><span id="wfkpout">0.7</span></div>

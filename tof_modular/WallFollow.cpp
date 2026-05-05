@@ -34,6 +34,14 @@ void WallFollow::handleCorner() {
   delay(150);
 
   // 2) Pivot in place until front is clear past turnClearDist
+  // while (_tof.front() < _turnClearDist) {
+  //   if (_followRight) _dt.rotateNinety(1);
+  //   else              _dt.rotateNinety(0);
+  //   _tof.update();
+  //   delay(1500); //CHANGED FROM 300, 200 AND 250 DO OK WITH CORNERS(NEED 3 FIXES) BUT STILL WANT TO AVOID COMPLETELY
+  //   //288 WORKS BUT AVOID RAMP SOMETIMES
+  // }
+
   while (_tof.front() < _turnClearDist) {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);

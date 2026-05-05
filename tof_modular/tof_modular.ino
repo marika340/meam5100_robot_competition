@@ -8,10 +8,10 @@
 //   ToFArray.h/cpp        - 3 ToF sensors + filtering
 //   ManualDrive.h/cpp     - closed-loop RPM Mode driven by web UI
 //   WallFollow.h/cpp      - autonomous wall-following Mode
+//   Centering.h/cpp       - PD wall-centering Mode (open-ended OR auto-stop)
+//   PressTower.h/cpp      - non-blocking approach/hold/retreat Mode
+//   LowTower.h/cpp        - composite Mode: straight -> rotate x2 -> center -> press
 //   WebController.h/cpp   - WiFi + HTTP UI
-//
-// Centering / press-button kept as small free functions for now;
-// promote to Mode subclasses when ready.
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -21,8 +21,11 @@
 #include "ToFArray.h"
 #include "ManualDrive.h"
 #include "WallFollow.h"
+#include "Centering.h"
+#include "PressTower.h"
+#include "LowTower.h"
 #include "WebController.h"
-#include "vive.h"
+#include "RobotPosition.h"
 #include "TopHat.h"
 #include "Attacker.h"
 
@@ -30,8 +33,9 @@
 
 // Motors: index 0 = LEFT, 1 = RIGHT
 //   PWM pin, dir1, dir2, encA, encB, ledc channel, freq, resolution, counts per revolution
-Motor leftMotor (1,  42, 41, 35, 36, 0,  500, 14, 12.0f * 4 * 34);
-Motor rightMotor(2,  40, 39, 34, 33, 1,  500, 14, 12.0f * 4 * 34);
+// JGA25-370 12V 400RPM: 11 PPR/channel * 4 quadrature edges * 21:1 gearbox = 924 counts/output rev
+Motor leftMotor (1,  42, 41, 35, 36, 0,  500, 14, 11.0f * 4 * 21);
+Motor rightMotor(2,  40, 39, 34, 33, 1,  500, 14, 11.0f * 4 * 21);
 
 
 Drivetrain drivetrain(leftMotor, rightMotor);
@@ -52,10 +56,16 @@ ToFArray tofs(XSHUT_LEFT, XSHUT_FRONT, XSHUT_RIGHT,
 // Modes
 ManualDrive manualDrive(drivetrain);
 WallFollow  wallFollow (drivetrain, tofs);
+Centering   centering  (drivetrain, tofs);
+// PressTower(drivetrain, approachMs, holdMs, retreatMs)
+PressTower  towerPress (drivetrain,  500, 8000,  500);   // long hold for tower
+PressTower  nexusPress (drivetrain,  500, 1500,  500);   // shorter hold for nexus
+// LowTower composes drivetrain + Centering + PressTower (tower variant).
+//   straightInches=9*12, frontStopMm=100, rotateDir=0 (CW)
+LowTower    lowTower   (drivetrain, centering, towerPress);
 
-// Vive
-vive leftVive(viveLeft);
-vive rightVive(viveRight);
+// Robot Position
+RobotPosition robotPos(viveLeft, viveRight);
 
 
 // WiFi
@@ -76,25 +86,29 @@ uint8_t health = 0;
 Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 
 // SUPERVISOR / MAIN STATE MACHINE
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_BUTTON };
+//
+// Most car modes are now real Mode subclasses (ManualDrive, WallFollow,
+// Centering, PressTower, LowTower). The supervisor owns a `currentMode`
+// pointer and uniformly calls its lifecycle methods. The only states
+// that are NOT Modes:
+//   - TRANSITION    : brief inter-mode stop with a millis() timer
+//   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
+//                     (could become a Mode later; small enough to leave)
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER };
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
-//   pendingMode is what TRANSITION will hand off to when its timer
-//   elapses. Lets us reuse TRANSITION for any future drive-mode →
-//   drive-mode handoff (e.g. hardcoded path → wall-follow).
 unsigned long transitionStartMs = 0;
 CarMode pendingMode = MANUAL_DRIVE;
 
 // Pointer to currently-active Mode (nullptr for non-Mode states like
-// TRANSITION / CENTERING / PRESSING_BUTTON, which still live as free
-// functions).
+// TRANSITION and STRAIGHT_MOVE).
 Mode* currentMode = nullptr;
 
 // MODE HELPERS
 static void enterMode(CarMode next) {
   if (carMode == next) return;
-  // Universal onExit + safety stop. onExit calls drivetrain.stop() too,
+  // Universal onExit + safety stop. onExit() calls drivetrain.stop() too,
   // but the redundancy is harmless and keeps non-Mode states consistent.
   if (currentMode) {
     currentMode->onExit();
@@ -104,24 +118,24 @@ static void enterMode(CarMode next) {
 
   carMode = next;
   switch (carMode) {
-    case MANUAL_DRIVE:
-      currentMode = &manualDrive;
-      currentMode->onEnter();
-      break;
+    case MANUAL_DRIVE:    currentMode = &manualDrive; break;
+    case WALL_FOLLOWING:  currentMode = &wallFollow;  break;
+    case CENTERING:       currentMode = &centering;   break;
+    case PRESSING_TOWER:  currentMode = &towerPress;  break;
+    case PRESSING_NEXUS:  currentMode = &nexusPress;  break;
+    case LOW_TOWER:       currentMode = &lowTower;    break;
     case TRANSITION:
       transitionStartMs = millis();
       Serial.println("Mode: TRANSITION");
       break;
-    case WALL_FOLLOWING:
-      currentMode = &wallFollow;
-      currentMode->onEnter();
+    case STRAIGHT_MOVE:
+      // Caller (enterStraightMove) is responsible for kicking off the move.
+      Serial.println("Mode: STRAIGHT_MOVE");
       break;
-    case CENTERING:
-      Serial.println("Mode: CENTERING");
-      break;
-    case PRESSING_BUTTON:
-      Serial.println("Mode: PRESSING_BUTTON");
-      break;
+  }
+  if (currentMode) {
+    Serial.printf("Mode: %s\n", currentMode->name());
+    currentMode->onEnter();
   }
 }
 
@@ -131,66 +145,35 @@ static void enterTransitionTo(CarMode dest) {
   enterMode(TRANSITION);
 }
 
+// Force-takeover into a non-blocking dead-reckoning straight move.
+// Exits any current Mode, stops the drivetrain, then kicks off the move.
+// Loop will tick updateStraightMove() each iteration and return to
+// MANUAL_DRIVE when the move completes.
+static void enterStraightMove(int desiredDist) {
+  if (currentMode) {
+    currentMode->onExit();
+    currentMode = nullptr;
+  }
+  drivetrain.stop();
+  carMode = STRAIGHT_MOVE;
+  Serial.printf("Mode: STRAIGHT_MOVE %d in\n", desiredDist);
+  drivetrain.straightMove(desiredDist);
+}
+
 // Web /mode= callback
 void onModeChange(int mode) {
   switch (mode) {
     case 0: enterMode(MANUAL_DRIVE);             break;
     case 1: enterTransitionTo(WALL_FOLLOWING);   break;
     case 2: enterTransitionTo(CENTERING);        break;
+    case 3: enterTransitionTo(LOW_TOWER);        break;  // HTML "Low Tower" button
     default: break;
   }
 }
 
-
-// LEGACY MODE STUBS — keep behaviour until promoted to Mode subclasses
-
-// Drives forward briefly, holds, retreats. Used after CENTERING locks on.
-static void runPressButton() {
-  drivetrain.stop();
-  drivetrain.driveDirect( 80,  80); delay(500);   // approach
-  drivetrain.driveDirect( 50,  50); delay(8000);  // hold for 8s
-  drivetrain.driveDirect(-80, -80); delay(500);   // retreat
-  drivetrain.stop();
-}
-
-// Quick-and-dirty centering using a local PD on (right - left).
-// Promote to a Mode subclass when you're ready.
-static void runCentering() {
-  static unsigned long lastMs = 0;
-  static PID centerPid(0.7f, 0.0f, 1.2f, 1000.0f);
-  unsigned long now = millis();
-  float dt = (now - lastMs) / 1000.0f;
-  if (dt < 0.01f) return;
-  lastMs = now;
-
-  // Detect button by sudden one-sided drop (ramp width ~482 mm; button thickness ~50 mm).
-  bool buttonRight = (tofs.right() < 70.0f && tofs.left()  > 200.0f);
-  bool buttonLeft  = (tofs.left()  < 70.0f && tofs.right() > 200.0f);
-  if (buttonRight || buttonLeft) {
-    drivetrain.stop(); delay(200);
-    if (buttonRight) drivetrain.driveDirect( 120, -120);
-    else             drivetrain.driveDirect(-120,  120);
-    delay(500);
-    drivetrain.stop();
-    runPressButton();
-    enterMode(MANUAL_DRIVE);
-    return;
-  }
-
-  // PD on lateral error: positive => closer to right wall, steer left.
-  float err = tofs.right() - tofs.left();
-  if (fabsf(err) < 10.0f) err = 0.0f;
-  float ctrl = centerPid.compute(0.0f, -err, dt);
-  ctrl = constrain(ctrl, -100.0f, 100.0f);
-
-  int baseSpeed = 140;
-  drivetrain.driveDirect(baseSpeed + (int)ctrl, baseSpeed - (int)ctrl);
-
-  if (tofs.front() < 100.0f) {
-    drivetrain.stop();
-    runPressButton();
-    enterMode(MANUAL_DRIVE);
-  }
+// Web /straight= callback — force-takeover into STRAIGHT_MOVE.
+void onStraightMove(int inches) {
+  enterStraightMove(inches);
 }
 
 
@@ -198,8 +181,7 @@ static void runCentering() {
 void setup() {
   Serial.begin(115200);
 
-  leftVive.begin();
-  rightVive.begin();
+  robotPos.begin();
 
   // Hardware
   drivetrain.begin();
@@ -218,6 +200,7 @@ void setup() {
 
   // WiFi + handlers
   web.begin(ssid, password);
+  web.setStraightMoveCallback(onStraightMove);
 
   // Boot directly into ManualDrive. carMode is already MANUAL_DRIVE so
   // enterMode would short-circuit; activate the Mode explicitly.
@@ -232,46 +215,48 @@ void setup() {
 void loop() {
   web.serve();           // always serve HTTP
   tofs.update();         // always read distances
-
-  vive::Position leftPos  = leftVive.callibrate();
-  vive::Position rightPos = rightVive.callibrate();
-  Serial0.printf("Left: X %.1f, Left: Y %.1f\n",  leftPos.x,  leftPos.y);
-  Serial0.printf("Right: X %.1f, Right: Y %.1f\n", rightPos.x, rightPos.y);
-
+  robotPos.callibrate();
   arm.update();
-
   TopHat();
 
+  // Gate the position telemetry — printf-ing every loop iteration
+  // saturates the UART and slows the main loop noticeably.
+  static unsigned long lastPosPrintMs = 0;
+  unsigned long now = millis();
+  if (now - lastPosPrintMs >= 100) {
+    lastPosPrintMs = now;
+    Serial0.printf("L: %.1f,%.1f  R: %.1f,%.1f  M: %.1f,%.1f\n",
+                   robotPos.getRobotPosition(LEFT ).x, robotPos.getRobotPosition(LEFT ).y,
+                   robotPos.getRobotPosition(RIGHT).x, robotPos.getRobotPosition(RIGHT).y,
+                   robotPos.getRobotPosition(MID  ).x, robotPos.getRobotPosition(MID  ).y);
+  }
 
-  if (health == 0) {
-    drivetrain.stop();
-    arm.stop();
-  } else { 
-      switch (carMode) {
-          case MANUAL_DRIVE:
-            if (currentMode) currentMode->update();
-            break;
+  // Supervisor: TRANSITION and STRAIGHT_MOVE are the only states that
+  // aren't real Modes; everything else is uniformly driven through the
+  // currentMode pointer. Modes that auto-complete (PressTower, LowTower,
+  // Centering with a front-stop threshold) flag isDone() and the
+  // supervisor returns to MANUAL_DRIVE on the next tick.
+  switch (carMode) {
+    case TRANSITION:
+      drivetrain.stop();
+      if (millis() - transitionStartMs > 300) enterMode(pendingMode);
+      break;
 
-          case TRANSITION:
-            // Brief non-blocking stop, then hand off to whatever mode requested it.
-            drivetrain.stop();
-            if (millis() - transitionStartMs > 300) {
-              enterMode(pendingMode);
-            }
-            break;
+    case STRAIGHT_MOVE:
+      if (drivetrain.updateStraightMove(millis())) {
+        Serial.println("STRAIGHT_MOVE complete -> MANUAL_DRIVE");
+        enterMode(MANUAL_DRIVE);
+      }
+      break;
 
-          case WALL_FOLLOWING:
-            if (currentMode) currentMode->update();
-            break;
-
-          case CENTERING:
-            runCentering();
-            break;
-
-          case PRESSING_BUTTON:
-            runPressButton();
-            enterMode(MANUAL_DRIVE);
-            break;
+    default:
+      if (currentMode) {
+        currentMode->update();
+        if (currentMode->isDone()) {
+          Serial.printf("%s complete -> MANUAL_DRIVE\n", currentMode->name());
+          enterMode(MANUAL_DRIVE);
         }
-    }
+      }
+      break;
+  }
 }

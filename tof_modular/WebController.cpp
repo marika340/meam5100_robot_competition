@@ -31,7 +31,8 @@ void WebController::begin(const char* ssid, const char* password) {
   _h.attachHandler("/wf_Kd=",       hWfKd);
   _h.attachHandler("/sharpTurn=",   hSharpTurn);
   _h.attachHandler("/",             hRoot);
-  _h.attachHandler("/attack", hAttack);
+  _h.attachHandler("/attack",       hAttack);
+  _h.attachHandler("/straight=",    hStraight);
 }
 
 void WebController::serve() { _h.serve(); }
@@ -132,4 +133,13 @@ void WebController::hAttack() {
     extern Attacker arm; // Access the global arm object
     arm.toggle();
     s_self->_h.sendhtml(body);
+}
+
+void WebController::hStraight() {
+  if (!s_self) return;
+  incrementPacketCount();
+  int inches = (int)s_self->_h.getVal();
+  Serial.printf("Web /straight= %d\n", inches);
+  if (s_self->_onStraight) s_self->_onStraight(inches);
+  s_self->_h.sendhtml(body);
 }

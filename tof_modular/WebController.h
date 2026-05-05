@@ -27,12 +27,17 @@
 // =====================================================================
 class WebController {
 public:
-  using ModeCallback = void (*)(int newMode);
+  using ModeCallback         = void (*)(int newMode);
+  using StraightMoveCallback = void (*)(int inches);   // /straight=NN
 
   WebController(ManualDrive& md, WallFollow& wf, ModeCallback onMode);
 
   // Connect WiFi (blocking) and register all handlers.
   void begin(const char* ssid, const char* password);
+
+  // Optional: register a callback for the /straight= endpoint.
+  // Pass nullptr (or never call this) to disable the endpoint.
+  void setStraightMoveCallback(StraightMoveCallback cb) { _onStraight = cb; }
 
   void serve();
 
@@ -40,6 +45,7 @@ private:
   ManualDrive& _md;
   WallFollow&  _wf;
   ModeCallback _onMode;
+  StraightMoveCallback _onStraight = nullptr;
   HTML510Server _h;
 
   // Singleton hookup so static handlers can find the live instance.
@@ -57,6 +63,7 @@ private:
   static void hWfKd();
   static void hSharpTurn();
   static void hAttack();
+  static void hStraight();
 };
 
 #endif // WEB_CONTROLLER_H

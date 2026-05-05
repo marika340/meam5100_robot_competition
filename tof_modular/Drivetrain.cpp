@@ -131,6 +131,126 @@ void Drivetrain::driveDirect(int leftCmd, int rightCmd, int maxAbs) {
   _right.setSpeed(rightCmd, maxAbs);
 }
 
+// ---- Straight-move tunables -----------------------------------------
+namespace {
+  constexpr float SM_ONE_ROTATION_IN = 16.02f;   // inches per wheel revolution
+  constexpr float SM_COUNTS_PER_REV  = 11.0f * 4 * 21;     // encoder counts per revolution
+  constexpr int   SM_BASE_PWM        = 150;      // nominal PWM (0..255)
+  constexpr float SCALE              = 3.71f;    // empirical distance fudge factor
+  constexpr float SM_KP_SYNC         = 0.5f;     // PWM per count of L-R error
+  constexpr unsigned long SM_TICK_MS = 20;       // gate between sync / rotate ticks
+
+  // ---- Rotate-in-place tunables -------------------------------------
+  constexpr long  ROT_TARGET_COUNTS = (long)(0.75f * 1632);  // recalibrate
+  constexpr int   ROT_PWM           = 150;
+}
+
+void Drivetrain::straightMove(int desiredDist) {
+  // Kick off a non-blocking dead-reckoning straight move.
+  // desiredDist is inches; sign sets direction (+ = forward, - = backward).
+  // The actual driving happens in updateStraightMove(), which the main
+  // loop must call every iteration.
+  if (desiredDist == 0) { stop(); _smActive = false; return; }
+
+  _smDir          = (desiredDist >= 0) ? 1 : -1;
+  _smTargetCounts = (long)((fabsf(SCALE * (float)desiredDist) / SM_ONE_ROTATION_IN)
+                           * SM_COUNTS_PER_REV);
+  _smLeftStart    = _left.getCount();
+  _smRightStart   = _right.getCount();
+  _smLastTickMs   = 0;             // force first tick to run immediately
+  _smActive       = true;
+
+  // Clear any closed-loop state — we're driving raw PWM here.
+  _targetRPM = 0.0f;
+  _pidL.reset();
+  _pidR.reset();
+
+  // Start moving on this same call so the robot doesn't sit idle until
+  // the next loop iteration.
+  _left.setSpeed(_smDir  * SM_BASE_PWM, 255);
+  _right.setSpeed(_smDir * SM_BASE_PWM, 255);
+}
+
+bool Drivetrain::updateStraightMove(unsigned long nowMs) {
+  if (!_smActive) return true;     // nothing to do = "done"
+
+  // Rate-limit the sync update so KP_SYNC tuning doesn't depend on how
+  // fast the main loop happens to spin.
+  if (nowMs - _smLastTickMs < SM_TICK_MS) return false;
+  _smLastTickMs = nowMs;
+
+  long lCounts = labs(_left.getCount()  - _smLeftStart);
+  long rCounts = labs(_right.getCount() - _smRightStart);
+
+  if (lCounts >= _smTargetCounts && rCounts >= _smTargetCounts) {
+    _smActive = false;
+    stop();
+    return true;
+  }
+
+  // P-sync: if left has rolled further than right, slow left, boost right.
+  long err  = lCounts - rCounts;
+  int  corr = (int)(SM_KP_SYNC * (float)err);
+  corr = constrain(corr, -SM_BASE_PWM, SM_BASE_PWM);
+
+  int leftCmd  = _smDir * (SM_BASE_PWM - corr);
+  int rightCmd = _smDir * (SM_BASE_PWM + corr);
+
+  // Cut whichever side has hit target so the other can catch up.
+  if (lCounts >= _smTargetCounts) leftCmd  = 0;
+  if (rCounts >= _smTargetCounts) rightCmd = 0;
+
+  _left.setSpeed(leftCmd,  255);
+  _right.setSpeed(rightCmd, 255);
+  return false;
+}
+
+void Drivetrain::rotateNinety(int dir) {
+  // Kick off a non-blocking in-place 90° pivot. dir==0 -> CW, else CCW.
+  // Driving happens in updateRotateNinety(), which the main loop must
+  // call every iteration until it returns true.
+  _rotDir          = dir;
+  _rotTargetCounts = ROT_TARGET_COUNTS;
+  _rotLeftStart    = _left.getCount();
+  _rotRightStart   = _right.getCount();
+  _rotLastTickMs   = 0;
+  _rotActive       = true;
+
+  // Clear any closed-loop state — we're driving raw PWM.
+  _targetRPM = 0.0f;
+  _pidL.reset();
+  _pidR.reset();
+
+  // Counter-rotate the two sides immediately so the move starts on this tick.
+  if (dir == 0) {  // CW
+    _left.setSpeed( ROT_PWM, 255);
+    _right.setSpeed(-ROT_PWM, 255);
+  } else {         // CCW
+    _left.setSpeed(-ROT_PWM, 255);
+    _right.setSpeed( ROT_PWM, 255);
+  }
+}
+
+bool Drivetrain::updateRotateNinety(unsigned long nowMs) {
+  if (!_rotActive) return true;     // nothing to do = "done"
+
+  // Rate-limit so this doesn't depend on loop speed.
+  if (nowMs - _rotLastTickMs < SM_TICK_MS) return false;
+  _rotLastTickMs = nowMs;
+
+  long lCounts = labs(_left.getCount()  - _rotLeftStart);
+  long rCounts = labs(_right.getCount() - _rotRightStart);
+
+  if (lCounts >= _rotTargetCounts && rCounts >= _rotTargetCounts) {
+    _rotActive = false;
+    stop();
+    return true;
+  }
+  // No PWM updates needed — both motors were set in rotateNinety()
+  // and run open-loop until target counts are reached.
+  return false;
+}
+
 void Drivetrain::stop() {
   // "Stop and forget": clear target and direction so any later
   // accidental runPidTick() is a no-op. Caller must re-setTargetRPM
@@ -138,6 +258,8 @@ void Drivetrain::stop() {
   _targetRPM = 0.0f;
   _dir[0] = 0; _dir[1] = 0;
   _motorSpeed[0] = 0; _motorSpeed[1] = 0;
+  _smActive  = false;           // abort any in-progress straight move
+  _rotActive = false;           // abort any in-progress rotate
   _left.stop();
   _right.stop();
 }
