@@ -53,6 +53,7 @@ const char body[] PROGMEM = R"===(
             <button id="m2" onclick="setMode(2)">Centering</button>
             <button id="m3" onclick="setMode(3)" style="background-color:#9c27b0; color:white;">Low Tower</button>
             <button id="m4" onclick="setMode(4)" style="background-color:#e91e63; color:white;">Attack Nexus</button>
+            <button id="m5" onclick="setMode(5)" style="background-color:#ff9800; color:white;">Attack Top Tower</button>
             <button id="straightButton" onclick="sendGET('/straight=12')" style="background-color:#2196F3; color:white;">Straight Movement</button>
         </div>
         <div class="side-col">

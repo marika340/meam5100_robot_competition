@@ -25,6 +25,7 @@
 #include "PressTower.h"
 #include "LowTower.h"
 #include "AttackNexus.h"
+#include "AttackTopTower.h"
 #include "WebController.h"
 #include "RobotPosition.h"
 #include "TopHat.h"
@@ -59,8 +60,9 @@ ManualDrive manualDrive(drivetrain);
 WallFollow  wallFollow (drivetrain, tofs);
 Centering   centering  (drivetrain, tofs);
 // PressTower(drivetrain, approachMs, holdMs, retreatMs)
-PressTower  towerPress (drivetrain,  500, 8000,  500);   // long hold for tower
-PressTower  nexusPress (drivetrain,  500, 1500,  500);   // shorter hold for nexus
+PressTower  towerPress    (drivetrain,  500, 8000,  500);   // long hold for low tower
+PressTower  nexusPress    (drivetrain,  500, 1500,  500);   // shorter hold for nexus
+PressTower  topTowerPress (drivetrain,  500, 8500,  500);   // top tower: 8.5 s hold
 // LowTower composes drivetrain + Centering + PressTower (tower variant).
 //   straightInches=9*12, frontStopMm=100, rotateDir=0 (CW)
 LowTower    lowTower   (drivetrain, centering, towerPress);
@@ -70,6 +72,12 @@ AttackNexus attackNexus(drivetrain, centering, nexusPress);
 
 // Robot Position
 RobotPosition robotPos(viveLeft, viveRight);
+
+// AttackTopTower composes drivetrain + WallFollow + RobotPosition + ToFArray
+// + PressTower (top-tower variant, 8.5 s hold). Uses Vive coordinates to
+// detect when the robot reaches the bridge trigger location, then turns
+// 90 CCW, drives forward until front ToF < 100 mm, and presses.
+AttackTopTower attackTopTower(drivetrain, wallFollow, robotPos, tofs, topTowerPress);
 
 
 // WiFi
@@ -98,7 +106,7 @@ Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 //   - TRANSITION    : brief inter-mode stop with a millis() timer
 //   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
 //                     (could become a Mode later; small enough to leave)
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS };
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER };
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
@@ -129,6 +137,7 @@ static void enterMode(CarMode next) {
     case PRESSING_NEXUS:  currentMode = &nexusPress;  break;
     case LOW_TOWER:       currentMode = &lowTower;    break;
     case ATTACK_NEXUS:    currentMode = &attackNexus; break;
+    case ATTACK_TOP_TOWER:currentMode = &attackTopTower; break;
     case TRANSITION:
       transitionStartMs = millis();
       Serial.println("Mode: TRANSITION");
@@ -173,6 +182,7 @@ void onModeChange(int mode) {
     case 2: enterTransitionTo(CENTERING);        break;
     case 3: enterTransitionTo(LOW_TOWER);        break;  // HTML "Low Tower" button
     case 4: enterTransitionTo(ATTACK_NEXUS);     break;  // HTML "Attack Nexus" button
+    case 5: enterTransitionTo(ATTACK_TOP_TOWER); break;  // HTML "Top Tower" button
     default: break;
   }
 }
