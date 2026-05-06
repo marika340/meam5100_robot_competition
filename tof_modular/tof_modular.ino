@@ -24,6 +24,7 @@
 #include "Centering.h"
 #include "PressTower.h"
 #include "LowTower.h"
+#include "AttackNexus.h"
 #include "WebController.h"
 #include "RobotPosition.h"
 #include "TopHat.h"
@@ -63,6 +64,9 @@ PressTower  nexusPress (drivetrain,  500, 1500,  500);   // shorter hold for nex
 // LowTower composes drivetrain + Centering + PressTower (tower variant).
 //   straightInches=9*12, frontStopMm=100, rotateDir=0 (CW)
 LowTower    lowTower   (drivetrain, centering, towerPress);
+// AttackNexus composes drivetrain + Centering + PressTower (nexus variant).
+//   straightInches=9*12 (108"), frontStopMm=100, pressCount=4
+AttackNexus attackNexus(drivetrain, centering, nexusPress);
 
 // Robot Position
 RobotPosition robotPos(viveLeft, viveRight);
@@ -94,7 +98,7 @@ Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 //   - TRANSITION    : brief inter-mode stop with a millis() timer
 //   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
 //                     (could become a Mode later; small enough to leave)
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER };
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS };
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
@@ -124,6 +128,7 @@ static void enterMode(CarMode next) {
     case PRESSING_TOWER:  currentMode = &towerPress;  break;
     case PRESSING_NEXUS:  currentMode = &nexusPress;  break;
     case LOW_TOWER:       currentMode = &lowTower;    break;
+    case ATTACK_NEXUS:    currentMode = &attackNexus; break;
     case TRANSITION:
       transitionStartMs = millis();
       Serial.println("Mode: TRANSITION");
@@ -167,6 +172,7 @@ void onModeChange(int mode) {
     case 1: enterTransitionTo(WALL_FOLLOWING);   break;
     case 2: enterTransitionTo(CENTERING);        break;
     case 3: enterTransitionTo(LOW_TOWER);        break;  // HTML "Low Tower" button
+    case 4: enterTransitionTo(ATTACK_NEXUS);     break;  // HTML "Attack Nexus" button
     default: break;
   }
 }

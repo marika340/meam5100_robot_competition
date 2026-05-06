@@ -12,6 +12,8 @@ void WallFollow::onEnter() {
   _stallState   = StallState::OK;
   _lastLeftCmd  = 0;
   _lastRightCmd = 0;
+  _lastFrontTofSample = _tof.front();
+  _frontTofSampleMs   = millis();
   // Initial follow direction: whichever side is closer.
   // updateFollowDirection();
   Serial.println(">>> WallFollow::onEnter — engaged.");
@@ -34,14 +36,6 @@ void WallFollow::handleCorner() {
   delay(150);
 
   // 2) Pivot in place until front is clear past turnClearDist
-  // while (_tof.front() < _turnClearDist) {
-  //   if (_followRight) _dt.rotateNinety(1);
-  //   else              _dt.rotateNinety(0);
-  //   _tof.update();
-  //   delay(1500); //CHANGED FROM 300, 200 AND 250 DO OK WITH CORNERS(NEED 3 FIXES) BUT STILL WANT TO AVOID COMPLETELY
-  //   //288 WORKS BUT AVOID RAMP SOMETIMES
-  // }
-
   while (_tof.front() < _turnClearDist) {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
@@ -58,9 +52,28 @@ void WallFollow::handleCorner() {
   Serial.printf("[WF] Corner cleared. L:%.0f F:%.0f R:%.0f\n",
                 _tof.left(), _tof.front(), _tof.right());
 
-  _cornerExitMs = millis();  // start immunity window
+  _cornerExitMs       = millis();  // start immunity window
+  _lastFrontTofSample = _tof.front();  // reset front-stuck tracking
+  _frontTofSampleMs   = millis();
 }
 
+
+// ── Front-ToF stuck detection ────────────────────────────────────────────
+bool WallFollow::isFrontStuck() {
+  // Skip if we just handled a corner (ramp immunity) or front is clear.
+  if (millis() - _cornerExitMs < RAMP_IMMUNITY_MS) return false;
+  float front = _tof.front();
+  if (front > TOF_FRONT_STUCK_MAX) return false;
+
+  // If the front reading has moved enough, reset the timer — not stuck.
+  if (fabsf(front - _lastFrontTofSample) > TOF_FRONT_STUCK_THRESH) {
+    _lastFrontTofSample = front;
+    _frontTofSampleMs   = millis();
+    return false;
+  }
+
+  return (millis() - _frontTofSampleMs) >= TOF_FRONT_STUCK_CONFIRM_MS;
+}
 
 // ── Stall detection ──────────────────────────────────────────────────────
 bool WallFollow::isStalled() {
@@ -84,6 +97,11 @@ void WallFollow::handleStall() {
         _stallState   = StallState::DETECTING;
         _stallStartMs = now;
         Serial.println("[WF] Stall suspected — confirming...");
+      } else if (isFrontStuck()) {
+        Serial.println("[WF] Front ToF frozen — reversing!");
+        _dt.driveDirect(-100, -100);
+        _stallState     = StallState::REVERSING;
+        _reverseStartMs = now;
       }
       break;
 
@@ -103,7 +121,9 @@ void WallFollow::handleStall() {
         _dt.stop();
         delay(150);
         _pid.reset();
-        _stallState = StallState::OK;
+        _stallState         = StallState::OK;
+        _lastFrontTofSample = _tof.front();  // reset front-stuck tracking
+        _frontTofSampleMs   = millis();
         Serial.println("[WF] Stall recovery done — resuming.");
       }
       break;
