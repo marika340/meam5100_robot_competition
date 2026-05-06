@@ -94,18 +94,18 @@ private:
 
   Step          _step          = ATT_DONE;
 
-  // ---- Vive gating tunables (defaults from user spec) ---------------
+  // ---- Vive gating tunables ---------------
   float   _entryX     = 4745.5f, _entryY     = 3000.0f;
-  float   _entryXTol  =  100.0f, _entryYTol  =  200.0f;  // x window kept generous so we don't miss
+  float   _entryXTol  =  300.0f, _entryYTol  =  300.0f;  // x window kept generous so we don't miss
 
-  float   _trigX      = 4329.0f, _trigY      = 2811.5f;
-  float   _trigXTol   =   50.0f, _trigYTol   =   50.0f;
+  float   _trigX      = 4189.0f, _trigY      = 3000.0f;
+  float   _trigXTol   =   100.0f, _trigYTol   =  300.0f;
 
   float   _exitX      = 3622.5f, _exitY      = 3000.0f;
-  float   _exitXTol   =  100.0f, _exitYTol   =  200.0f;
+  float   _exitXTol   =  300.0f, _exitYTol   =  300.0f;
 
   // Number of consecutive in-window samples required to fire each gate.
-  uint8_t _confirmN   = 10;
+  uint8_t _confirmN   = 5;
 
   // Running counters of consecutive in-window Vive samples.
   uint8_t _entryHits  = 0;

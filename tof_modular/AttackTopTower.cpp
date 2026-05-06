@@ -124,7 +124,7 @@ void AttackTopTower::update() {
       _wf.update();
       updateViveCounters();
       // Trigger fires first wins.
-      if (_trigHits >= _confirmN) {
+      if (_trigHits >= 2) {
         enterRotate();
       } else if (_exitHits >= _confirmN) {
         // Overshot the trigger window without firing. Abort.
