@@ -46,9 +46,9 @@ private:
 
   // Geometry / tuning
   float _desiredWallDist  = 67.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL, 65 sometimes goes to ramp and sometimes avoids ramp, 55 avoids ramp
-  float _frontStopDist    = 280.0f;  // increased so robot starts turning sooner
+  float _frontStopDist    = 300.0f;  // increased so robot starts turning sooner
   float _wallLostDist     = 600.0f;
-  float _turnClearDist    = 285.0f; // MUST stay > _frontStopDist or handleCorner() pivot loop never runs
+  float _turnClearDist    = 300.0f; // MUST stay > _frontStopDist or handleCorner() pivot loop never runs
   float _switchMargin     = 40.0f;
   int   _baseSpeed        = 140;
   int   _minSpeed         = 80;
@@ -75,13 +75,13 @@ private:
   // ---- Front-ToF stuck detection ----------------------------------
   static constexpr float         TOF_FRONT_STUCK_THRESH     = 15.0f;  // mm — front must change by this to count as "moving"
   static constexpr float         TOF_FRONT_STUCK_MAX        = 600.0f; // mm — only watch when something is this close in front
-  static constexpr unsigned long TOF_FRONT_STUCK_CONFIRM_MS = 1000;   // ms  — front must be frozen this long before reversing
+  static constexpr unsigned long TOF_FRONT_STUCK_CONFIRM_MS = 1500;   // ms  — front must be frozen this long before reversing
 
   float         _lastFrontTofSample = 0.0f;
   unsigned long _frontTofSampleMs   = 0;
 
   unsigned long _cornerExitMs = 0;
-  static constexpr unsigned long RAMP_IMMUNITY_MS = 1500; // it used to be 800
+  static constexpr unsigned long RAMP_IMMUNITY_MS = 1000; // it used to be 800
 
   void updateFollowDirection();
   void handleCorner();         // in-place pivot until front clears

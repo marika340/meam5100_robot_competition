@@ -140,11 +140,6 @@ void WallFollow::update() {
   float dt = (now - _lastLoopMs) / 1000.0f;
   _lastLoopMs = now;
 
-  // Reassess which wall to follow when the front is unobstructed.
-  // if (_tof.front() > _frontStopDist) {
-  //   updateFollowDirection();
-  // }
-
   // Hard obstacle ahead — pivot away.
   bool immuneToFront = (millis() - _cornerExitMs < RAMP_IMMUNITY_MS);
   if (!immuneToFront && _tof.front() < _frontStopDist) {
