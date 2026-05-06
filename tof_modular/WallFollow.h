@@ -45,7 +45,7 @@ private:
   PID         _pid;             // pure PD, ki=0
 
   // Geometry / tuning
-  float _desiredWallDist  = 65.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL
+  float _desiredWallDist  = 67.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL, 65 sometimes goes to ramp and sometimes avoids ramp, 55 avoids ramp
   float _frontStopDist    = 280.0f;
   float _wallLostDist     = 600.0f;
   float _turnClearDist    = 285.0f; //CHANGED FROM 280 ORIGINAL
@@ -73,7 +73,7 @@ private:
   int           _lastRightCmd   = 0;
 
   unsigned long _cornerExitMs = 0;
-  static constexpr unsigned long RAMP_IMMUNITY_MS = 800;
+  static constexpr unsigned long RAMP_IMMUNITY_MS = 1500; // it used to be 800
 
   void updateFollowDirection();
   void handleCorner();         // in-place pivot until front clears
