@@ -186,7 +186,7 @@ void onModeChange(int mode) {
     case 3: enterTransitionTo(LOW_TOWER);        break;  // HTML "Low Tower" button
     case 4: enterTransitionTo(ATTACK_NEXUS);     break;  // HTML "Attack Nexus" button
     case 5: enterTransitionTo(ATTACK_TOP_TOWER); break;  // HTML "Top Tower" button
-    case 10: enterMode(VIVE_NAV);                break;
+    case 10: enterTransitionTo(VIVE_NAV);                break;
     default: break;
   }
 }

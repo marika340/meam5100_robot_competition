@@ -18,12 +18,12 @@ public:
   const char* name() const override { return "VIVE_NAV"; }
 
 private:
-  enum Step { NAV_IDLE, NAV_ZONE2_WP, NAV_MOVE_X, NAV_ROTATE, NAV_MOVE_Y, NAV_DONE };
+  enum Step { NAV_IDLE, NAV_ZONE2_WP, NAV_ZONE2_TURN_IN, NAV_ZONE2_MOVE_Y, NAV_ZONE2_ALIGN,NAV_MOVE_X, NAV_ROTATE, NAV_MOVE_Y, NAV_DONE };
   Step _step = NAV_IDLE;
 
   Drivetrain& _dt;
-  NavigationTools::FieldPosition _target; // renamed from _targetPos to match .cpp
-
+  NavigationTools::FieldPosition _target;
+  bool _pendingStart = false;
   bool isInZone2(float x, float y);
 };
 

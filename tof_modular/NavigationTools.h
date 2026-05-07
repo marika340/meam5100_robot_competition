@@ -20,8 +20,8 @@ public:
     static constexpr float START_Y_IN = 12.0f;
 
     //Zone 2 Start Position (Real Coordinates)
-    static constexpr float ZONE2_WAYPOINT_X = 6.0f;
-    static constexpr float ZONE2_WAYPOINT_Y = -10.0f;
+    static constexpr float ZONE2_WAYPOINT_X = 10.0f;
+    static constexpr float ZONE2_WAYPOINT_Y = -6.0f;
 
     static FieldPosition convertViveToField(VivePosition vivePos) {
         // Your specific coefficients
