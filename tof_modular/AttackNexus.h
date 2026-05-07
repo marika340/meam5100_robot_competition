@@ -6,6 +6,7 @@
 #include "Drivetrain.h"
 #include "Centering.h"
 #include "PressTower.h"
+#include "ToFArray.h"
 
 // =====================================================================
 // AttackNexus: scripted attack sequence on the nexus button cluster.
@@ -33,6 +34,7 @@ public:
   AttackNexus(Drivetrain& dt,
               Centering&  centering,
               PressTower& presser,
+              ToFArray&   tofs,
               int         straightInches    = 9 * 12,
               float       frontStopMm       = 100.0f,
               int         pressCount        = 4);
@@ -49,6 +51,7 @@ private:
   Drivetrain& _dt;
   Centering&  _centering;
   PressTower& _presser;
+  ToFArray&   _tofs;
 
   int   _straightInches;
   float _frontStopMm;

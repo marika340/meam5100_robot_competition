@@ -51,10 +51,11 @@ const char body[] PROGMEM = R"===(
             <button id="m0" onclick="setMode(0)">Stop / Manual</button>
             <button id="m1" onclick="setMode(1)">Wall Follow</button>
             <button id="m2" onclick="setMode(2)">Centering</button>
-            <button id="m3" onclick="setMode(3)" style="background-color:#9c27b0; color:white;">Low Tower</button>
-            <button id="m4" onclick="setMode(4)" style="background-color:#e91e63; color:white;">Attack Nexus</button>
+            <button id="m3" onclick="setMode(3)" style="background-color:#9c27b0; color:white;">Attack Nexus</button>
+            <button id="m4" onclick="setMode(4)" style="background-color:#e91e63; color:white;">Attack Low Tower</button>
             <button id="m5" onclick="setMode(5)" style="background-color:#ff9800; color:white;">Attack Top Tower</button>
             <button id="straightButton" onclick="sendGET('/straight=12')" style="background-color:#2196F3; color:white;">Straight Movement</button>
+            <button id="m6" onclick="setMode(6)" style="background-color:#FFC107; color:white;">Attack Top Tower Pure ToF</button>
         </div>
         <div class="side-col">
             <div class="slider-group">wf_Kp: <input type="range" id="wfkpslider" min="0" max="5" step="0.05" value="0.7"><span id="wfkpout">0.7</span></div>

@@ -1,13 +1,20 @@
 #include "PressTower.h"
+#include "ToFArray.h"      
+#include "Centering.h" 
 
 PressTower::PressTower(Drivetrain& dt,
+                       Centering&  centering,
+                       ToFArray&   tofs,
                        unsigned long approachMs,
                        unsigned long holdMs,
                        unsigned long retreatMs,
                        int approachPwm,
                        int holdPwm,
-                       int retreatPwm)
+                       int retreatPwm
+                       )
   : _dt(dt),
+    _tofs(tofs),
+    _centering(centering),
     _approachMs(approachMs),
     _holdMs(holdMs),
     _retreatMs(retreatMs),
@@ -29,13 +36,23 @@ void PressTower::update() {
   unsigned long elapsed = millis() - _phaseStartMs;
 
   switch (_phase) {
-    case PT_APPROACH:
+    case PT_APPROACH: 
       if (elapsed >= _approachMs) {
         _phase        = PT_HOLD;
         _phaseStartMs = millis();
         _dt.driveDirect(_holdPwm, _holdPwm);
       }
       break;
+
+    case PT_CENTERING: 
+      _centering.update();
+      if (_centering.isDone()) {
+        _centering.onExit();
+        _centering.setFrontStopThreshold(0.0f);
+        _phaseStartMs = millis();
+        _phase = PT_HOLD;
+      }
+    break;
     case PT_HOLD:
       if (elapsed >= _holdMs) {
         _phase        = PT_RETREAT;

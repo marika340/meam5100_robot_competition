@@ -6,6 +6,7 @@
 #include "Drivetrain.h"
 #include "Centering.h"
 #include "PressTower.h"
+#include "ToFArray.h"
 
 // =====================================================================
 // LowTower: scripted attack sequence on the low tower.
@@ -30,7 +31,8 @@ public:
   LowTower(Drivetrain& dt,
            Centering&  centering,
            PressTower& presser,
-           int         straightInches    = 9 * 12,
+           ToFArray&   tofs,
+           int         straightInches    = 7 * 12, //SHORTED DEADRECKNONING TO MAKE IT MORE ROBUST WITH TOF INTERGRATION
            float       frontStopMm       = 100.0f,
            int         rotateDir         = 0);   // 0 -> CW, else CCW
 
@@ -46,7 +48,7 @@ private:
   Drivetrain& _dt;
   Centering&  _centering;
   PressTower& _presser;
-
+  ToFArray&   _tofs;
   int   _straightInches;
   float _frontStopMm;
   int   _rotateDir;

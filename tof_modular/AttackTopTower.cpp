@@ -4,8 +4,9 @@ AttackTopTower::AttackTopTower(Drivetrain&    dt,
                                WallFollow&    wallFollow,
                                RobotPosition& robotPos,
                                ToFArray&      tofs,
-                               PressTower&    presser)
-  : _dt(dt), _wf(wallFollow), _pos(robotPos), _tofs(tofs), _presser(presser)
+                               PressTower&    presser,
+                               Centering&     centering)
+  : _dt(dt), _wf(wallFollow), _pos(robotPos), _tofs(tofs), _presser(presser), _centering(centering)
 {
 }
 
@@ -19,6 +20,9 @@ void AttackTopTower::onEnter() {
   _exitHits    = 0;
   _entryFlag   = false;
   _lastSampleMs = millis();
+  // Capture baseline for the button bump detection
+  _thicknessBaseline = _tofs.left();
+  _rampStartMs = millis();
 
   _step = ATT_WALL_TO_BRIDGE;
   _wf.onEnter();
@@ -110,10 +114,18 @@ void AttackTopTower::update() {
   switch (_step) {
 
     case ATT_WALL_TO_BRIDGE: {
-      _wf.update();
-      updateViveCounters();
+      //_wf.update();
+      //updateViveCounters();
       // Once the entry gate trips, we move to ON_BRIDGE state. The
       // robot keeps wall-following without interruption.
+      if (_isPureToF) {
+        // ToF logic
+        _centering.onEnter(); 
+        _step = ATT_RAMP_CENTERING;
+        break; 
+      }
+      _wf.update();
+      updateViveCounters();
       if (_entryFlag) {
         _step = ATT_WALL_ON_BRIDGE;
       }
@@ -129,6 +141,40 @@ void AttackTopTower::update() {
       } else if (_exitHits >= _confirmN) {
         // Overshot the trigger window without firing. Abort.
         abortToDone("crossed exit gateway");
+      }
+      break;
+    }
+
+    //ADD CENTERING CASE
+    case ATT_RAMP_CENTERING: {
+        _centering.update(); // Keep us centered
+    unsigned long rampElapsed = millis() - _rampStartMs;
+    
+    bool buttonDetected = (_tofs.left() < (_thicknessBaseline - THICKNESS_THRESHOLD));
+    bool timedOut = (rampElapsed > 5555); //CHANGED FROM 6000 MS
+    
+    if (buttonDetected) {
+        Serial.println("[ATT] button detected via ToF");
+        _lastSampleMs = millis();
+        _step = ATT_STEER_MANEUVER;
+    } else if (timedOut) {
+        Serial.println("[ATT] timed out -- assuming at top of ramp");
+        _lastSampleMs = millis();
+        _step = ATT_STEER_MANEUVER;
+    }
+    break;
+    }
+
+        //ADD MANUVER CASE
+    case ATT_STEER_MANEUVER: {
+        unsigned long elapsed = millis() - _lastSampleMs; //TIME WHEN THE CAR SEE THE BUTTON
+        if (elapsed < 500) { 
+        // Steer right: Left motor faster than right
+        // This creates the diagonal move you want
+        _dt.driveDirect(140, 80); 
+      } else {
+        _dt.stop();
+        enterRotate(); 
       }
       break;
     }

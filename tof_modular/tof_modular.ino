@@ -60,15 +60,15 @@ ManualDrive manualDrive(drivetrain);
 WallFollow  wallFollow (drivetrain, tofs);
 Centering   centering  (drivetrain, tofs);
 // PressTower(drivetrain, approachMs, holdMs, retreatMs)
-PressTower  towerPress    (drivetrain,  500, 8000,  500);   // long hold for low tower
-PressTower  nexusPress    (drivetrain,  500, 1500,  500);   // shorter hold for nexus
-PressTower  topTowerPress (drivetrain,  500, 8500,  500);   // top tower: 8.5 s hold
+PressTower  towerPress    (drivetrain,centering, tofs,  500, 8000,  500);   // long hold for low tower
+PressTower  nexusPress    (drivetrain,centering, tofs,  500, 1500,  500);   // shorter hold for nexus
+PressTower  topTowerPress (drivetrain,centering, tofs,  500, 8500,  500);   // top tower: 8.5 s hold
 // LowTower composes drivetrain + Centering + PressTower (tower variant).
 //   straightInches=9*12, frontStopMm=100, rotateDir=0 (CW)
-LowTower    lowTower   (drivetrain, centering, towerPress);
+LowTower    lowTower   (drivetrain, centering, towerPress, tofs);
 // AttackNexus composes drivetrain + Centering + PressTower (nexus variant).
 //   straightInches=9*12 (108"), frontStopMm=100, pressCount=4
-AttackNexus attackNexus(drivetrain, centering, nexusPress);
+AttackNexus attackNexus(drivetrain, centering, nexusPress, tofs);
 
 // Robot Position
 RobotPosition robotPos(viveLeft, viveRight);
@@ -77,7 +77,8 @@ RobotPosition robotPos(viveLeft, viveRight);
 // + PressTower (top-tower variant, 8.5 s hold). Uses Vive coordinates to
 // detect when the robot reaches the bridge trigger location, then turns
 // 90 CCW, drives forward until front ToF < 100 mm, and presses.
-AttackTopTower attackTopTower(drivetrain, wallFollow, robotPos, tofs, topTowerPress);
+AttackTopTower attackTopTower(drivetrain, wallFollow, robotPos, tofs, topTowerPress, centering);
+AttackTopTower attackTopTowerPureToF(drivetrain, wallFollow, robotPos, tofs, topTowerPress, centering);
 
 
 // WiFi
@@ -106,7 +107,7 @@ Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 //   - TRANSITION    : brief inter-mode stop with a millis() timer
 //   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
 //                     (could become a Mode later; small enough to leave)
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER };
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER, ATTACK_TOP_TOF};
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
@@ -137,7 +138,8 @@ static void enterMode(CarMode next) {
     case PRESSING_NEXUS:  currentMode = &nexusPress;  break;
     case LOW_TOWER:       currentMode = &lowTower;    break;
     case ATTACK_NEXUS:    currentMode = &attackNexus; break;
-    case ATTACK_TOP_TOWER:currentMode = &attackTopTower; break;
+    case ATTACK_TOP_TOWER:attackTopTower.setPureToF(false); currentMode = &attackTopTower; break; //TOF IS OFF IN THIS MODE
+    case ATTACK_TOP_TOF:  attackTopTowerPureToF.setPureToF(true); currentMode = &attackTopTowerPureToF; break; //TOF IS ON IN THIS MODE
     case TRANSITION:
       transitionStartMs = millis();
       Serial.println("Mode: TRANSITION");
@@ -180,9 +182,10 @@ void onModeChange(int mode) {
     case 0: enterMode(MANUAL_DRIVE);             break;
     case 1: enterTransitionTo(WALL_FOLLOWING);   break;
     case 2: enterTransitionTo(CENTERING);        break;
-    case 3: enterTransitionTo(LOW_TOWER);        break;  // HTML "Low Tower" button
-    case 4: enterTransitionTo(ATTACK_NEXUS);     break;  // HTML "Attack Nexus" button
+    case 3: enterTransitionTo(ATTACK_NEXUS);     break;  // HTML "Low Tower" button
+    case 4: enterTransitionTo(LOW_TOWER);        break;  // HTML "Attack Nexus" button //HAVE TO SWAP BECAUSE IT WAS DOING THE OPPOSITE FUNCTIONS ON THE WEBSITE
     case 5: enterTransitionTo(ATTACK_TOP_TOWER); break;  // HTML "Top Tower" button
+    case 6: enterTransitionTo(ATTACK_TOP_TOF);   break;  //HTML "TOP TOWER PURE TOF" BUTTON
     default: break;
   }
 }

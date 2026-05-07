@@ -1,12 +1,14 @@
 #include "AttackNexus.h"
+#include "ToFArray.h"
 
 AttackNexus::AttackNexus(Drivetrain& dt,
                          Centering&  centering,
                          PressTower& presser,
+                         ToFArray&   tofs,
                          int         straightInches,
                          float       frontStopMm,
                          int         pressCount)
-  : _dt(dt), _centering(centering), _presser(presser),
+  : _dt(dt), _centering(centering), _presser(presser), _tofs(tofs),
     _straightInches(straightInches),
     _frontStopMm(frontStopMm),
     _pressCount(pressCount)
@@ -27,11 +29,15 @@ void AttackNexus::update() {
 
   switch (_step) {
     case AN_STRAIGHT:
-      if (_dt.updateStraightMove(now)) {
+      if (_tofs.front() <= 1300 && _tofs.front() > 1.0f) {    //CHANGE 888 IF THE DISTANCE IS NOT ENOUGH FOR CENTERING
+        Serial.println("AttackNexus: ToF early stop -> centering");
+        _dt.stop();
+        _step = AN_CENTER;
+        _centering.setFrontStopThreshold(_frontStopMm);
+        _centering.onEnter();
+      } else if (_dt.updateStraightMove(now)) {
         Serial.println("AttackNexus: straight done -> centering");
         _step = AN_CENTER;
-        // Configure Centering to auto-stop when we reach the nexus,
-        // then activate it as a nested Mode.
         _centering.setFrontStopThreshold(_frontStopMm);
         _centering.onEnter();
       }

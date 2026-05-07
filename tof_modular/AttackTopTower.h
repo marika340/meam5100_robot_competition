@@ -8,6 +8,7 @@
 #include "RobotPosition.h"
 #include "ToFArray.h"
 #include "PressTower.h"
+#include "Centering.h"
 
 // =====================================================================
 // AttackTopTower: scripted attack on the bridge-side "top tower" button.
@@ -53,7 +54,8 @@ public:
                  WallFollow&    wallFollow,
                  RobotPosition& robotPos,
                  ToFArray&      tofs,
-                 PressTower&    presser);
+                 PressTower&    presser,
+                 Centering& centering);
 
   void onEnter() override;
   void update()  override;
@@ -75,15 +77,19 @@ public:
   void setSampleConfirmCount(uint8_t n) { _confirmN = n; }
   void setApproachPwm(int pwm)          { _approachPwm = pwm; }
   void setFrontStopMm(float mm)         { _frontStopMm = mm; }
+  void setPureToF(bool enable) { _isPureToF = enable; } //ADD PURE TOF MODE
 
 private:
+  bool _isPureToF = false;
   enum Step {
     ATT_WALL_TO_BRIDGE,   // wall-follow, waiting for entry gateway
     ATT_WALL_ON_BRIDGE,   // wall-follow, watching trigger + exit
+    ATT_RAMP_CENTERING,   // centering when going on the ramp
+    ATT_STEER_MANEUVER,   //start steering when detect a change in left ToF
     ATT_ROTATE_CCW,       // pivoting 90° CCW
     ATT_APPROACH,         // raw drive forward until front ToF stops us
     ATT_PRESS,            // PressTower running
-    ATT_DONE
+    ATT_DONE,
   };
 
   Drivetrain&    _dt;
@@ -91,15 +97,21 @@ private:
   RobotPosition& _pos;
   ToFArray&      _tofs;
   PressTower&    _presser;
+  Centering&     _centering;
 
   Step          _step          = ATT_DONE;
 
-  // ---- Vive gating tunables ---------------
+  // ADD THIS FOR BUTTON THICKNESS DETECTION AND PURE TOF CONTROL
+  float _thicknessBaseline = 0.0f;
+  const float THICKNESS_THRESHOLD = 5.0f; // mm change to trigger
+  unsigned long _rampStartMs = 0;
+
+  // ---- Vive gating tunables (defaults from user spec) ---------------
   float   _entryX     = 4745.5f, _entryY     = 3000.0f;
   float   _entryXTol  =  300.0f, _entryYTol  =  300.0f;  // x window kept generous so we don't miss
 
-  float   _trigX      = 4189.0f, _trigY      = 3000.0f;
-  float   _trigXTol   =   100.0f, _trigYTol   =  300.0f;
+  float   _trigX      = 4089.0f, _trigY      = 3000.0f;
+  float   _trigXTol   =   100.0f, _trigYTol   =   300.0f;
 
   float   _exitX      = 3622.5f, _exitY      = 3000.0f;
   float   _exitXTol   =  300.0f, _exitYTol   =  300.0f;

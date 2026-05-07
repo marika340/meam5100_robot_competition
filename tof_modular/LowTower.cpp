@@ -1,12 +1,14 @@
 #include "LowTower.h"
+#include "ToFArray.h"
 
 LowTower::LowTower(Drivetrain& dt,
                    Centering&  centering,
                    PressTower& presser,
+                   ToFArray&   tofs,
                    int         straightInches,
                    float       frontStopMm,
                    int         rotateDir)
-  : _dt(dt), _centering(centering), _presser(presser),
+  : _dt(dt), _centering(centering), _presser(presser), _tofs(tofs),
     _straightInches(straightInches),
     _frontStopMm(frontStopMm),
     _rotateDir(rotateDir)
@@ -25,10 +27,15 @@ void LowTower::update() {
 
   switch (_step) {
     case LT_STRAIGHT:
-      if (_dt.updateStraightMove(now)) {
-        Serial.println("LowTower: straight done -> rotate 1");
-        _step = LT_ROTATE_1;
-        _dt.rotateNinety(_rotateDir);
+      if (_tofs.front() <= 1500.0f && _tofs.front() > 1.0f) { //ADD TOF FRONT READING, IF DETECT TOF, PERFORM THE ACTION
+          Serial.println("LowTower: front ToF triggered early stop -> rotate 1");
+          _dt.stop();
+          _step = LT_ROTATE_1;
+          _dt.rotateNinety(_rotateDir);
+      } else if (_dt.updateStraightMove(now)) {
+          Serial.println("LowTower: straight done -> rotate 1");
+          _step = LT_ROTATE_1;
+          _dt.rotateNinety(_rotateDir);
       }
       break;
 

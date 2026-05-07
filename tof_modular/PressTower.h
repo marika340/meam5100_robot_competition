@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include "Mode.h"
 #include "Drivetrain.h"
+#include "ToFArray.h"      
+#include "Centering.h" 
 
 // =====================================================================
 // PressTower: drives forward, holds against the target, retreats.
@@ -20,12 +22,15 @@
 class PressTower : public Mode {
 public:
   PressTower(Drivetrain& dt,
+             Centering&  centering,
+             ToFArray&   tofs,
              unsigned long approachMs,
              unsigned long holdMs,
              unsigned long retreatMs,
              int approachPwm = 80,
              int holdPwm     = 50,
-             int retreatPwm  = 80);
+             int retreatPwm  = 80
+             );
 
   void onEnter() override;
   void update()  override;
@@ -39,9 +44,11 @@ public:
   void setHoldPwm(int p)               { _holdPwm = p; }
 
 private:
-  enum Phase { PT_APPROACH, PT_HOLD, PT_RETREAT, PT_DONE };
+  enum Phase { PT_APPROACH, PT_CENTERING, PT_HOLD, PT_RETREAT, PT_DONE };
 
   Drivetrain&   _dt;
+  Centering&    _centering;
+  ToFArray&     _tofs; 
   Phase         _phase          = PT_DONE;
   unsigned long _phaseStartMs   = 0;
 
