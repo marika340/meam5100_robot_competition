@@ -30,6 +30,7 @@
 #include "RobotPosition.h"
 #include "TopHat.h"
 #include "Attacker.h"
+#include "ViveNavigation.h"
 
 // PIN / HARDWARE CONFIG
 
@@ -72,6 +73,7 @@ AttackNexus attackNexus(drivetrain, centering, nexusPress, tofs);
 
 // Robot Position
 RobotPosition robotPos(viveLeft, viveRight);
+ViveNavigation viveNav(drivetrain);
 
 // AttackTopTower composes drivetrain + WallFollow + RobotPosition + ToFArray
 // + PressTower (top-tower variant, 8.5 s hold). Uses Vive coordinates to
@@ -107,7 +109,7 @@ Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 //   - TRANSITION    : brief inter-mode stop with a millis() timer
 //   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
 //                     (could become a Mode later; small enough to leave)
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER, ATTACK_TOP_TOF};
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER, ATTACK_TOP_TOF, VIVE_NAV};
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
@@ -140,6 +142,7 @@ static void enterMode(CarMode next) {
     case ATTACK_NEXUS:    currentMode = &attackNexus; break;
     case ATTACK_TOP_TOWER:attackTopTower.setPureToF(false); currentMode = &attackTopTower; break; //TOF IS OFF IN THIS MODE
     case ATTACK_TOP_TOF:  attackTopTowerPureToF.setPureToF(true); currentMode = &attackTopTowerPureToF; break; //TOF IS ON IN THIS MODE
+    case VIVE_NAV:        currentMode = &viveNav; break;  
     case TRANSITION:
       transitionStartMs = millis();
       Serial.println("Mode: TRANSITION");
@@ -186,6 +189,7 @@ void onModeChange(int mode) {
     case 4: enterTransitionTo(LOW_TOWER);        break;  // HTML "Attack Nexus" button //HAVE TO SWAP BECAUSE IT WAS DOING THE OPPOSITE FUNCTIONS ON THE WEBSITE
     case 5: enterTransitionTo(ATTACK_TOP_TOWER); break;  // HTML "Top Tower" button
     case 6: enterTransitionTo(ATTACK_TOP_TOF);   break;  //HTML "TOP TOWER PURE TOF" BUTTON
+    case 10: enterTransitionTo(VIVE_NAV);       break;   
     default: break;
   }
 }

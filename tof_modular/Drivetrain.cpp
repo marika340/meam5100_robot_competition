@@ -1,5 +1,6 @@
 #include "Drivetrain.h"
 
+
 Drivetrain::Drivetrain(Motor& left, Motor& right)
   : _left(left), _right(right),
     _pidL(2.0f, 1.5f, 0.0f, 50.0f),
@@ -161,30 +162,35 @@ namespace {
   constexpr int   ROT_PWM           = 150;
 }
 
-void Drivetrain::straightMove(int desiredDist) {
+void Drivetrain::straightMove(int desiredDistInches) {
   // Kick off a non-blocking dead-reckoning straight move.
   // desiredDist is inches; sign sets direction (+ = forward, - = backward).
   // The actual driving happens in updateStraightMove(), which the main
   // loop must call every iteration.
-  if (desiredDist == 0) { stop(); _smActive = false; return; }
+  if (desiredDistInches == 0) { stop(); _smActive = false; return; }
 
-  _smDir          = (desiredDist >= 0) ? 1 : -1;
-  _smTargetCounts = (long)((fabsf(SCALE * (float)desiredDist) / SM_ONE_ROTATION_IN)
-                           * SM_COUNTS_PER_REV);
+  _smActive       = true;
+  _smStartTime = millis();
+  
+  _smDir = (desiredDistInches >= 0) ? 1 : -1;
+  float tpi = 184.0;
+  _smTargetCounts = (long)(fabsf((float)desiredDistInches) * tpi);
+
+  // Safety: If the math fails, don't let it be 0
+  if (_smTargetCounts < 10) _smTargetCounts = 500; 
+
+  Serial.printf("DEBUG: Moving %d inches. Target Ticks: %ld\n", desiredDistInches, _smTargetCounts);
+
   _smLeftStart    = _left.getCount();
   _smRightStart   = _right.getCount();
-  _smLastTickMs   = 0;             // force first tick to run immediately
-  _smActive       = true;
+  _smLastTickMs   = 0;
 
-  // Clear any closed-loop state — we're driving raw PWM here.
   _targetRPM = 0.0f;
   _pidL.reset();
   _pidR.reset();
 
-  // Start moving on this same call so the robot doesn't sit idle until
-  // the next loop iteration.
-  _left.setSpeed(_smDir  * SM_BASE_PWM, 255);
-  _right.setSpeed(_smDir * SM_BASE_PWM, 255);
+  _left.setSpeed(_smDir  * 150, 255);
+  _right.setSpeed(_smDir * 150, 255);
 }
 
 bool Drivetrain::updateStraightMove(unsigned long nowMs) {
@@ -192,13 +198,14 @@ bool Drivetrain::updateStraightMove(unsigned long nowMs) {
 
   // Rate-limit the sync update so KP_SYNC tuning doesn't depend on how
   // fast the main loop happens to spin.
-  if (nowMs - _smLastTickMs < SM_TICK_MS) return false;
-  _smLastTickMs = nowMs;
+  //if (nowMs - _smLastTickMs < SM_TICK_MS) return false;
+  //_smLastTickMs = nowMs;
 
   long lCounts = labs(_left.getCount()  - _smLeftStart);
   long rCounts = labs(_right.getCount() - _smRightStart);
 
-  if (lCounts >= _smTargetCounts && rCounts >= _smTargetCounts) {
+
+  if (lCounts >= _smTargetCounts || rCounts >= _smTargetCounts) {
     _smActive = false;
     stop();
     return true;
