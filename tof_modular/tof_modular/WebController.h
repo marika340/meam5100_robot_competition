@@ -64,6 +64,7 @@ private:
   static void hSharpTurn();
   static void hAttack();
   static void hStraight();
+  static void hViveNav();
 };
 
 #endif // WEB_CONTROLLER_H

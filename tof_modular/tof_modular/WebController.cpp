@@ -2,6 +2,7 @@
 #include "PIDandTOF_web.h"   // provides `body` HTML
 #include "TopHat.h"
 #include "Attacker.h"
+#include "ViveNavigation.h"
 
 WebController* WebController::s_self = nullptr;
 
@@ -33,6 +34,7 @@ void WebController::begin(const char* ssid, const char* password) {
   _h.attachHandler("/",             hRoot);
   _h.attachHandler("/attack",       hAttack);
   _h.attachHandler("/straight=",    hStraight);
+  _h.attachHandler("/goto_vive?x=", hViveNav);
 }
 
 void WebController::serve() { _h.serve(); }
@@ -142,4 +144,31 @@ void WebController::hStraight() {
   Serial.printf("Web /straight= %d\n", inches);
   if (s_self->_onStraight) s_self->_onStraight(inches);
   s_self->_h.sendhtml(body);
+}
+void WebController::hViveNav() {
+    if (!s_self) return;
+    incrementPacketCount();
+
+    // 1. Get the X value normally (it's at the very start of our handler path)
+    int xVive = s_self->_h.getVal(); 
+
+    // 2. Grab the entire remaining part of the URL string
+    // This should grab something like "&y=3000"
+    String remainder = s_self->_h.getText(); 
+
+    // 3. Manually find the '=' sign and convert what follows it to an integer
+    int yVive = 0;
+    int equalIndex = remainder.indexOf('=');
+    if (equalIndex != -1) {
+        // substring gets everything after the '='
+        yVive = remainder.substring(equalIndex + 1).toInt();
+    }
+
+    // Debugging: This will show you exactly what we grabbed
+    
+    extern ViveNavigation viveNav; 
+    viveNav.setTargetVive(xVive, yVive);
+    
+    if (s_self->_onMode) s_self->_onMode(10);
+    s_self->_h.sendhtml(body);
 }

@@ -27,10 +27,10 @@ public:
                 _lastAttackTime = millis();
                 if (_left == 0) {
                     _left = 1;
-                    ledcWrite(_pin, 410);  // duty_0.5ms, 410
+                    ledcWrite(_pin, 819);  // duty_1ms
                 } else {
                     _left = 0;
-                    ledcWrite(_pin, 2048); // duty_2.5 ms, 2048
+                    ledcWrite(_pin, 1638); // duty_2ms
                 }
             }
         } else {

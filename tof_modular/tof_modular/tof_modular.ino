@@ -30,6 +30,7 @@
 #include "RobotPosition.h"
 #include "TopHat.h"
 #include "Attacker.h"
+#include "ViveNavigation.h"
 
 // PIN / HARDWARE CONFIG
 
@@ -72,6 +73,7 @@ AttackNexus attackNexus(drivetrain, centering, nexusPress);
 
 // Robot Position
 RobotPosition robotPos(viveLeft, viveRight);
+ViveNavigation viveNav(drivetrain);
 
 // AttackTopTower composes drivetrain + WallFollow + RobotPosition + ToFArray
 // + PressTower (top-tower variant, 8.5 s hold). Uses Vive coordinates to
@@ -106,7 +108,7 @@ Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 //   - TRANSITION    : brief inter-mode stop with a millis() timer
 //   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
 //                     (could become a Mode later; small enough to leave)
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER };
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER, VIVE_NAV = 10};
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
@@ -138,6 +140,7 @@ static void enterMode(CarMode next) {
     case LOW_TOWER:       currentMode = &lowTower;    break;
     case ATTACK_NEXUS:    currentMode = &attackNexus; break;
     case ATTACK_TOP_TOWER:currentMode = &attackTopTower; break;
+    case VIVE_NAV:        currentMode = &viveNav;     break; 
     case TRANSITION:
       transitionStartMs = millis();
       Serial.println("Mode: TRANSITION");
@@ -183,6 +186,7 @@ void onModeChange(int mode) {
     case 3: enterTransitionTo(LOW_TOWER);        break;  // HTML "Low Tower" button
     case 4: enterTransitionTo(ATTACK_NEXUS);     break;  // HTML "Attack Nexus" button
     case 5: enterTransitionTo(ATTACK_TOP_TOWER); break;  // HTML "Top Tower" button
+    case 10: enterTransitionTo(VIVE_NAV);                break;
     default: break;
   }
 }
@@ -264,7 +268,7 @@ void loop() {
         enterMode(MANUAL_DRIVE);
       }
       break;
-
+    
     default:
       if (currentMode) {
         currentMode->update();

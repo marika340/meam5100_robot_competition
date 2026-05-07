@@ -63,6 +63,17 @@ const char body[] PROGMEM = R"===(
         </div>
     </div>
 
+    <div class="side-col">
+    <h3>Vive Navigation</h3>
+    <div class="slider-group">
+        Vive X: <input type="number" id="vxInput" placeholder="e.g. 4500" style="width: 80px;">
+    </div>
+    <div class="slider-group">
+        Vive Y: <input type="number" id="vyInput" placeholder="e.g. 3200" style="width: 80px;">
+    </div>
+    <button id="m10" onclick="sendVive()">Navigate to Vive</button>
+</div>
+
 <script>
     function sendGET(url) { var xhr = new XMLHttpRequest(); xhr.open("GET", url, true); xhr.send(); }
     
@@ -77,6 +88,19 @@ const char body[] PROGMEM = R"===(
     function setupInput(id, outId, endpoint) {
         var el = document.getElementById(id);
         el.oninput = function() { document.getElementById(outId).innerHTML = this.value; sendGET(endpoint + this.value); };
+    }
+
+    function sendVive() {
+    var x = document.getElementById('vxInput').value;
+    var y = document.getElementById('vyInput').value;
+    if(x && y) {
+        // Sends /goto_vive?x=XXXX&y=YYYY
+        sendGET("/goto_vive?x=" + x + "&y=" + y);
+        // Also switch the mode visually to your new Nav mode (e.g. Mode 10)
+        setMode(10); 
+    } else {
+        alert("Please enter both X and Y Vive coordinates");
+        }
     }
     
     // Aligned with backend handlers

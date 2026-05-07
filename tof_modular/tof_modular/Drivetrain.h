@@ -76,6 +76,12 @@ public:
   float  leftRPM()  const { return _curRPM[0]; }
   float  rightRPM() const { return _curRPM[1]; }
 
+  //Straight Move Variables
+  //Constants for Inch-to-Tick conversion
+  const float WheelDiam   = 1.6f; 
+  const float TicksPerRev = 184.0f;
+  const float TicksPerInch = TicksPerRev / (WheelDiam * 3.14159f);
+
 private:
   Motor& _left;
   Motor& _right;
@@ -96,6 +102,7 @@ private:
   long          _smLeftStart    = 0;
   long          _smRightStart   = 0;
   unsigned long _smLastTickMs   = 0;
+  unsigned long _smStartTime = 0;
 
   // ---- Rotate-90 state (non-blocking) -----------------------------
   bool          _rotActive      = false;
