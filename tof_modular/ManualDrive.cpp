@@ -17,12 +17,28 @@ void ManualDrive::onEnter() {
   // Drive command state resets per design — user re-touches slider.
   _targetRPM = 0.0f;
   _dirL = 0; _dirR = 0;
+  _inKickstart = true;
+  _kickStartUntil = millis() + 300;
 
   _active = true;
   Serial.println(">>> ManualDrive::onEnter");
 }
 
 void ManualDrive::update() {
+  if (_inKickstart) {
+    if (millis() < _kickStartUntil) {
+      float kickstartPower = (_targetRPM * 0.9f) / 200.0f; 
+      
+      // Ensure we don't go below a minimum power to actually move
+      if (kickstartPower < 0.4f) kickstartPower = 0.4f; 
+
+      _dt.setPower(kickstartPower * _dirL, kickstartPower * _dirR);
+      return;
+    }
+    _inKickstart = false;
+    _dt.setDirection(_dirL, _dirR);
+    _dt.setTargetRPM(_targetRPM);
+  }
   _dt.runPidTick(millis());
 }
 
@@ -33,6 +49,11 @@ void ManualDrive::onExit() {
 
 void ManualDrive::setTargetRPM(float rpm) {
   _targetRPM = rpm;
+  if (_active && rpm > 0.0f) {
+    _kickStartUntil = millis() + 300;
+    _inKickstart = true;
+    _dt.setDirection(_dirL, _dirR);  // make sure direction is set first
+  }
   if (_active) _dt.setTargetRPM(rpm);
 }
 

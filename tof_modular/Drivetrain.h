@@ -36,6 +36,7 @@ public:
   void  setTargetRPM(float rpm);
   void  setDirection(int leftDir, int rightDir);  // each in {-1,0,1}
   void  runPidTick(unsigned long nowMs);          // gated to 100 ms
+  void setPower(float left, float right);
 
   // ---- Raw drive (open-loop) primitives ---------------------------
   void  driveDirect(int leftCmd, int rightCmd, int maxAbs = 255);
