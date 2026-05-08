@@ -40,7 +40,7 @@ void WallFollow::handleCorner() {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
     _tof.update();
-    delay(260); //CHANGED FROM 300, 200 AND 250 DO OK WITH CORNERS(NEED 3 FIXES) BUT STILL WANT TO AVOID COMPLETELY, 277 AVOIDED THE RAMP
+    delay(260); //CHANGED FROM 300, 200 AND 250 DO OK WITH CORNERS(NEED 3 FIXES) BUT STILL WANT TO AVOID COMPLETELY, 277 AVOIDED THE RAMP, DEFAULT: 260, 235 not bad but gets stuck at the nexus under the ramp
     //288 WORKS BUT AVOID RAMP SOMETIMES
   }
 
