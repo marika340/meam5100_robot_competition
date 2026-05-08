@@ -15,8 +15,8 @@ void ManualDrive::onEnter() {
   pushGains();
 
   // Drive command state resets per design — user re-touches slider.
-  _targetRPM = 0.0f;
   _dirL = 0; _dirR = 0;
+  _targetRPM = 0.0f;
 
   _active = true;
   Serial.println(">>> ManualDrive::onEnter");

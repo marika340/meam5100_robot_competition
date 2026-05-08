@@ -46,6 +46,7 @@ private:
   float _iLimit;
   float _integral;
   float _prevError;
+  bool _firstCall = true;
 };
 
 #endif // PID_H
