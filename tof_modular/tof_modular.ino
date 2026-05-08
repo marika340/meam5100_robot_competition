@@ -245,10 +245,10 @@ void loop() {
   unsigned long now = millis();
   if (now - lastPosPrintMs >= 100) {
     lastPosPrintMs = now;
-    Serial0.printf("L: %.1f,%.1f  R: %.1f,%.1f  M: %.1f,%.1f\n",
-                   robotPos.getRobotPosition(LEFT ).x, robotPos.getRobotPosition(LEFT ).y,
-                   robotPos.getRobotPosition(RIGHT).x, robotPos.getRobotPosition(RIGHT).y,
-                   robotPos.getRobotPosition(MID  ).x, robotPos.getRobotPosition(MID  ).y);
+    // Serial0.printf("L: %.1f,%.1f  R: %.1f,%.1f  M: %.1f,%.1f\n",
+    //                robotPos.getRobotPosition(LEFT ).x, robotPos.getRobotPosition(LEFT ).y,
+    //                robotPos.getRobotPosition(RIGHT).x, robotPos.getRobotPosition(RIGHT).y,
+    //                robotPos.getRobotPosition(MID  ).x, robotPos.getRobotPosition(MID  ).y);
   }
 
   // Supervisor: TRANSITION and STRAIGHT_MOVE are the only states that
