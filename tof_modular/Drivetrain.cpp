@@ -66,15 +66,6 @@ void Drivetrain::setTargetRPM(float rpm) {
   applyMotor(1);
 }
 
-void Drivetrain::setPower(float left, float right) {
-    int resL = _left.resolution();
-    int resR = _right.resolution();
-    int leftCmd  = (int)(left * resL);
-    int rightCmd = (int)(right * resR);
-    _left.setSpeed(leftCmd, resL);
-    _right.setSpeed(rightCmd, resR);
-}
-
 void Drivetrain::runPidTick(unsigned long nowMs) {
   // No target — keep motors stopped and PID state clean.
   if (fabsf(_targetRPM) < 1.0f) {
@@ -103,13 +94,6 @@ void Drivetrain::runPidTick(unsigned long nowMs) {
     }
     _curRPM[i]     = fabsf(motors[i]->computeRPM(nowMs));
     float ctrl     = pids[i]->compute(setpt, _curRPM[i], dt);
-    float pwmOut = ctrl * scale;
-    // "Minimum Drive" Logic: 
-    // If the PID says "0" but we have a target, give it a small floor
-    // so the motors don't stall and become "choppy".
-    if (setpt > 1.0f && pwmOut < 40.0f) { 
-        pwmOut = 40.0f; 
-    }
     _motorSpeed[i] = constrain(ctrl * scale, 0.0f, (float)resN);
   }
 

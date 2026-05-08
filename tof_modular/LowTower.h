@@ -32,7 +32,7 @@ public:
            Centering&  centering,
            PressTower& presser,
            ToFArray&   tofs,
-           int         straightInches    = 6 * 12, //SHORTED DEADRECKNONING TO MAKE IT MORE ROBUST WITH TOF INTERGRATION
+           int         straightInches    = 7 * 12, //SHORTED DEADRECKNONING TO MAKE IT MORE ROBUST WITH TOF INTERGRATION
            float       frontStopMm       = 100.0f,
            int         rotateDir         = 0);   // 0 -> CW, else CCW
 

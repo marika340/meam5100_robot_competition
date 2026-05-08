@@ -34,7 +34,6 @@ public:
   // Setters: update cache; if currently active, also push to Drivetrain.
   void setTargetRPM(float rpm);
   void setDirection(int leftDir, int rightDir);
-  void setPower(float left, float right);
   void setKp(float v);
   void setKi(float v);
   void setKd(float v);
@@ -48,8 +47,6 @@ public:
 private:
   Drivetrain& _dt;
   bool        _active;
-  bool          _inKickstart;
-  unsigned long _kickStartUntil;
 
   // Drive command state — RESET on each entry.
   float _targetRPM;
