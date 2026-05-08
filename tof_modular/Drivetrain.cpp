@@ -42,7 +42,11 @@ void Drivetrain::setDirection(int leftDir, int rightDir) {
 }
 
 void Drivetrain::setTargetRPM(float rpm) {
-  _targetRPM = constrain(rpm, -kRpmScaleRef, kRpmScaleRef);
+  int dir = (rpm > 0) ? 1 : (rpm < 0) ? -1 : 0;
+  _dir[0] = dir;
+  _dir[1] = dir;
+
+  _targetRPM = constrain(fabsf(rpm), 0.0f, kRpmScaleRef);
   _pidL.reset();
   _pidR.reset();
 
@@ -50,6 +54,15 @@ void Drivetrain::setTargetRPM(float rpm) {
   // _motorSpeed on the first 100 ms tick. Without this, motors would idle
   // at zero PWM until the first PID period elapses.
   int   resN = _left.resolution();
+
+  //MANUAL KICKSTART
+  int kickPWM = (int)(0.6f * resN); // 60% duty cycle start up
+  _motorSpeed[0] = kickPWM;
+  _motorSpeed[1] = kickPWM;
+  applyMotor(0);
+  applyMotor(1);
+  delay(200);             // brief blocking burst, THE TIME IT TAKES FOR KICKSTART
+
   float magn = constrain(fabsf(rpm), 0.0f, kRpmScaleRef);
   float pwm  = (magn / kRpmScaleRef) * resN;
   _motorSpeed[0] = pwm;
@@ -59,7 +72,7 @@ void Drivetrain::setTargetRPM(float rpm) {
   unsigned long now = millis();
   _left.computeRPM(now);
   _right.computeRPM(now);
-  _lastPidMs = now;
+  _lastPidMs = now; //CHANGE THIS
 
   applyMotor(0);
   applyMotor(1);
@@ -92,6 +105,15 @@ void Drivetrain::runPidTick(unsigned long nowMs) {
       continue;
     }
     _curRPM[i]     = fabsf(motors[i]->computeRPM(nowMs));
+
+    //STALL FALL BACK
+    if (_curRPM[i] < 2.0f && fabsf(_targetRPM) > 10.0f) {
+      _motorSpeed[i] = 0.6f * resN; // one-tick burst
+      applyMotor(i);
+      motors[i]->computeRPM(nowMs);
+      continue;                     // skip normal PID this tick
+    }
+
     float ctrl     = pids[i]->compute(setpt, _curRPM[i], dt);
     _motorSpeed[i] = constrain(ctrl * scale, 0.0f, (float)resN);
   }

@@ -13,6 +13,7 @@ void PID::setGains(float kp, float ki, float kd) {
 void PID::reset() {
   _integral  = 0.0f;
   _prevError = 0.0f;
+  _firstCall = true;
 }
 
 float PID::compute(float setpoint, float measured, float dt) {
@@ -20,6 +21,7 @@ float PID::compute(float setpoint, float measured, float dt) {
   float error = setpoint - measured;
   _integral   = constrain(_integral + error * dt, -_iLimit, _iLimit);
   float deriv = (error - _prevError) / dt;
+  _firstCall = false;
   _prevError  = error;
   return _kp * error + _ki * _integral + _kd * deriv;
 }
