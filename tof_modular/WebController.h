@@ -65,6 +65,7 @@ private:
   static void hAttack();
   static void hStraight();
   static void hViveNav();
+  static void hState();   // /state -> JSON of telemetry (AttackTopTower + Vive MID)
 };
 
 #endif // WEB_CONTROLLER_H

@@ -3,6 +3,8 @@
 #include "TopHat.h"
 #include "Attacker.h"
 #include "ViveNavigation.h"
+#include "AttackTopTower.h"
+#include "RobotPosition.h"
 
 WebController* WebController::s_self = nullptr;
 
@@ -35,6 +37,7 @@ void WebController::begin(const char* ssid, const char* password) {
   _h.attachHandler("/attack",       hAttack);
   _h.attachHandler("/straight=",    hStraight);
   _h.attachHandler("/goto_vive?x=", hViveNav);
+  _h.attachHandler("/state",        hState);
 }
 
 void WebController::serve() { _h.serve(); }
@@ -171,4 +174,27 @@ void WebController::hViveNav() {
     
     if (s_self->_onMode) s_self->_onMode(10);
     s_self->_h.sendhtml(body);
+}
+
+// /state -> tiny JSON blob the front-end polls for telemetry.
+// Pulls AttackTopTower bridge-gating counters and the Vive MID position
+// from the globals declared in tof_modular.ino.
+void WebController::hState() {
+  if (!s_self) return;
+  extern AttackTopTower attackTopTower;
+  extern RobotPosition  robotPos;
+
+  RobotPosition::Position mid = robotPos.getRobotPosition(MID);
+
+  char buf[160];
+  // Keep keys short; the front-end parses by name.
+  snprintf(buf, sizeof(buf),
+           "{\"entryHits\":%u,\"entryFlag\":%s,\"trigHits\":%u,\"exitHits\":%u,"
+           "\"x\":%.1f,\"y\":%.1f}",
+           (unsigned)attackTopTower.entryHits(),
+           attackTopTower.entryFlag() ? "true" : "false",
+           (unsigned)attackTopTower.trigHits(),
+           (unsigned)attackTopTower.exitHits(),
+           mid.x, mid.y);
+  s_self->_h.sendplain(String(buf));
 }

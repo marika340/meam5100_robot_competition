@@ -76,6 +76,12 @@ public:
   void setApproachPwm(int pwm)          { _approachPwm = pwm; }
   void setFrontStopMm(float mm)         { _frontStopMm = mm; }
 
+  // Read-only accessors for telemetry / web reporting.
+  uint8_t entryHits() const { return _entryHits; }
+  uint8_t trigHits()  const { return _trigHits;  }
+  uint8_t exitHits()  const { return _exitHits;  }
+  bool    entryFlag() const { return _entryFlag; }
+
 private:
   enum Step {
     ATT_WALL_TO_BRIDGE,   // wall-follow, waiting for entry gateway
@@ -95,17 +101,17 @@ private:
   Step          _step          = ATT_DONE;
 
   // ---- Vive gating tunables ---------------
-  float   _entryX     = 4745.5f, _entryY     = 3000.0f;
+  float   _entryX     = 4745.5f, _entryY     = 3200.0f;
   float   _entryXTol  =  300.0f, _entryYTol  =  300.0f;  // x window kept generous so we don't miss
 
-  float   _trigX      = 4189.0f, _trigY      = 3000.0f;
+  float   _trigX      = 4189.0f, _trigY      = 3200.0f;
   float   _trigXTol   =   100.0f, _trigYTol   =  300.0f;
 
-  float   _exitX      = 3622.5f, _exitY      = 3000.0f;
+  float   _exitX      = 3622.5f, _exitY      = 3200.0f;
   float   _exitXTol   =  300.0f, _exitYTol   =  300.0f;
 
   // Number of consecutive in-window samples required to fire each gate.
-  uint8_t _confirmN   = 5;
+  uint8_t _confirmN   = 2;
 
   // Running counters of consecutive in-window Vive samples.
   uint8_t _entryHits  = 0;

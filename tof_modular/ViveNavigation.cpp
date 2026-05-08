@@ -59,6 +59,7 @@ void ViveNavigation::update() {
 
         case NAV_ROTATE:
             if (_dt.updateRotateNinety(now)) {
+                delay(75);
                 float currentY = isInZone2(_target.x, _target.y) ? 
                                  NavigationTools::ZONE2_WAYPOINT_Y : 
                                  NavigationTools::START_Y_IN;
