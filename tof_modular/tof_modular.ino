@@ -85,8 +85,26 @@ AttackTopTower attackTopTower(drivetrain, wallFollow, robotPos, tofs, topTowerPr
 // WiFi
 // const char* ssid     = "Junyi's iPhone";
 // const char* password = "d6Hc-VSwL-MyCa-P5Hb";
-const char* ssid     = "TP-Link_8A8C";
-const char* password = "12488674";
+// const char* ssid     = "TP-Link_8A8C";
+// const char* password = "12488674";
+
+// const char* ssid     = "Natalie Reid's iPhone";
+// const char* password = "greentree";
+
+// const char* ssid     = "Hot Dog";
+// const char* password = "mustardandketchup";
+
+// const char* ssid     = "iPhone";
+// const char* password = "anhduong";
+
+// const char* ssid = "DAMN"; // come up with your own personal SSID
+// const char* password = "damnedifidodamnedifidont";
+
+const char* ssid = "DAMN"; // come up with your own personal SSID
+const char* password = "damnbroo";
+
+// IPAddress myIP(192, 168, 1, 1);  // gateway-style address for AP mode
+// WiFiServer server(80);
 
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);
@@ -219,6 +237,11 @@ void setup() {
   }
 
   // WiFi + handlers
+  // WiFi.softAPConfig(myIP, myIP, IPAddress(255, 255, 255, 0));
+  // WiFi.softAP(ssid) ;  // example of open access point (no password) 
+  // Serial.print(" AP IP address"); Serial.println(myIP);
+  // server.begin();
+
   web.begin(ssid, password);
   web.setStraightMoveCallback(onStraightMove);
 
