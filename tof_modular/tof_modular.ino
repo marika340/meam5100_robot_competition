@@ -79,32 +79,22 @@ ViveNavigation viveNav(drivetrain);
 // + PressTower (top-tower variant, 8.5 s hold). Uses Vive coordinates to
 // detect when the robot reaches the bridge trigger location, then turns
 // 90 CCW, drives forward until front ToF < 100 mm, and presses.
-AttackTopTower attackTopTower(drivetrain, wallFollow, robotPos, tofs, topTowerPress);
+AttackTopTower AttackTopTower(drivetrain, lowTower, centering, 
+               nexusPress,      // for the 4 nexus button presses
+               topTowerPress,   // for the final approach + 8.5s hold
+               wallFollow);      // for the wall follow segment
 
 
 // WiFi
 // const char* ssid     = "Junyi's iPhone";
 // const char* password = "d6Hc-VSwL-MyCa-P5Hb";
-//const char* ssid     = "TP-Link_8A8C";
-//const char* password = "12488674";
+// const char* ssid     = "TP-Link_8A8C";
+// const char* password = "12488674";
+// const char* ssid     = "DAMN";
+// const char* password = "damnbroo";
 
-// const char* ssid     = "Natalie Reid's iPhone";
-// const char* password = "greentree";
-
-// const char* ssid     = "Hot Dog";
-// const char* password = "mustardandketchup";
-
-// const char* ssid     = "iPhone";
-// const char* password = "anhduong";
-
-// const char* ssid = "DAMN"; // come up with your own personal SSID
-// const char* password = "damnedifidodamnedifidont";
-
-const char* ssid = "DAMN"; // come up with your own personal SSID
-const char* password = "damnbroo";
-
-// IPAddress myIP(192, 168, 1, 1);  // gateway-style address for AP mode
-// WiFiServer server(80);
+const char* ssid     = "where the hell";
+const char* password = "#allnighter";   // must be at least 8 characters for WPA2
 
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);
@@ -126,7 +116,7 @@ Attacker arm(15, 2, 1000); // Pin 15, Channel 2, 1000ms window
 //   - TRANSITION    : brief inter-mode stop with a millis() timer
 //   - STRAIGHT_MOVE : raw drivetrain.straightMove ticked from the loop
 //                     (could become a Mode later; small enough to leave)
-enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER, VIVE_NAV = 10};
+enum CarMode { MANUAL_DRIVE, TRANSITION, WALL_FOLLOWING, CENTERING, PRESSING_NEXUS, PRESSING_TOWER, STRAIGHT_MOVE, LOW_TOWER, ATTACK_NEXUS, ATTACK_TOP_TOWER, VIVE_NAV = 10, };
 CarMode carMode = MANUAL_DRIVE;
 
 // TRANSITION timing + destination
@@ -157,7 +147,7 @@ static void enterMode(CarMode next) {
     case PRESSING_NEXUS:  currentMode = &nexusPress;  break;
     case LOW_TOWER:       currentMode = &lowTower;    break;
     case ATTACK_NEXUS:    currentMode = &attackNexus; break;
-    case ATTACK_TOP_TOWER:currentMode = &attackTopTower; break;
+    case ATTACK_TOP_TOWER:currentMode = &AttackTopTower; break;
     case VIVE_NAV:        currentMode = &viveNav;     break; 
     case TRANSITION:
       transitionStartMs = millis();
@@ -225,7 +215,7 @@ void setup() {
   drivetrain.begin();
   arm.begin();
 
-  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins 
+  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
 
   Wire.begin();
   Wire.setClock(400000);
@@ -237,11 +227,6 @@ void setup() {
   }
 
   // WiFi + handlers
-  // WiFi.softAPConfig(myIP, myIP, IPAddress(255, 255, 255, 0));
-  // WiFi.softAP(ssid) ;  // example of open access point (no password) 
-  // Serial.print(" AP IP address"); Serial.println(myIP);
-  // server.begin();
-
   web.begin(ssid, password);
   web.setStraightMoveCallback(onStraightMove);
 

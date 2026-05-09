@@ -32,8 +32,8 @@ void AttackNexus::update() {
         _step = AN_CENTER;
         // Configure Centering to auto-stop when we reach the nexus,
         // then activate it as a nested Mode.
-        _centering.setFrontStopThreshold(_frontStopMm);
         _centering.onEnter();
+        _centering.setFrontStopThreshold(_frontStopMm);
       }
       break;
 

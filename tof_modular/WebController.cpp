@@ -15,13 +15,13 @@ WebController::WebController(ManualDrive& md, WallFollow& wf, ModeCallback onMod
 }
 
 void WebController::begin(const char* ssid, const char* password) {
-  // NOTE: original sketch declared static IP variables but never called
-  // WiFi.config(), so we match: DHCP. To enable static IP, uncomment:
-  //   WiFi.config(ip, gateway, subnet);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
-  Serial.println("\nWiFi connected");
-  Serial.print("IP: "); Serial.println(WiFi.localIP());
+  // WiFi.begin(ssid, password);
+  // while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  // Serial.println("\nWiFi connected");
+  // Serial.print("IP: "); Serial.println(WiFi.localIP());
+  WiFi.softAP(ssid, password, 5);
+  Serial.println("\nAP mode started");
+  Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
 
   _h.begin();
   _h.attachHandler("/motor_speed=", hSpeed);
@@ -191,10 +191,10 @@ void WebController::hState() {
   snprintf(buf, sizeof(buf),
            "{\"entryHits\":%u,\"entryFlag\":%s,\"trigHits\":%u,\"exitHits\":%u,"
            "\"x\":%.1f,\"y\":%.1f}",
-           (unsigned)attackTopTower.entryHits(),
-           attackTopTower.entryFlag() ? "true" : "false",
-           (unsigned)attackTopTower.trigHits(),
-           (unsigned)attackTopTower.exitHits(),
+          //  (unsigned)attackTopTower.entryHits(),
+          //  attackTopTower.entryFlag() ? "true" : "false",
+          //  (unsigned)attackTopTower.trigHits(),
+          //  (unsigned)attackTopTower.exitHits(),
            mid.x, mid.y);
   s_self->_h.sendplain(String(buf));
 }

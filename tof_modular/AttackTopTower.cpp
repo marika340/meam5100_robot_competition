@@ -1,183 +1,257 @@
 #include "AttackTopTower.h"
 
-AttackTopTower::AttackTopTower(Drivetrain&    dt,
-                               WallFollow&    wallFollow,
-                               RobotPosition& robotPos,
-                               ToFArray&      tofs,
-                               PressTower&    presser)
-  : _dt(dt), _wf(wallFollow), _pos(robotPos), _tofs(tofs), _presser(presser)
-{
-}
+AttackTopTower::AttackTopTower(Drivetrain& dt,
+                               LowTower&   lowTower,
+                               Centering&  centering,
+                               PressTower& nexusPresser,
+                               PressTower& finalPresser,
+                               WallFollow& wallFollow,
+                               int         backUpInches,
+                               float       frontStopMm,
+                               int         pressCount,
+                               unsigned long wallFollowMs)
+  : _dt(dt), _lowTower(lowTower), _centering(centering),
+    _nexusPresser(nexusPresser), _finalPresser(finalPresser),
+    _wallFollow(wallFollow),
+    _backUpInches(backUpInches),
+    _frontStopMm(frontStopMm),
+    _pressCount(pressCount),
+    _wallFollowMs(wallFollowMs)
+{}
 
 void AttackTopTower::onEnter() {
-  Serial.println("AttackTopTower::onEnter -- engaging wall-follow to bridge");
+  Serial.println("AttackTopTower::onEnter -- starting LowTower");
   _dt.stop();
-
-  // Reset all gating state for a clean run.
-  _entryHits   = 0;
-  _trigHits    = 0;
-  _exitHits    = 0;
-  _entryFlag   = false;
-  _lastSampleMs = millis();
-
-  _step = ATT_WALL_TO_BRIDGE;
-  _wf.onEnter();
-}
-
-// ── Vive gating ──────────────────────────────────────────────────────────
-//
-// Counts CONSECUTIVE in-window samples at a fixed cadence (so we don't
-// count one Vive frame multiple times). A miss resets the relevant
-// counter back to zero — that's "10 in a row" 
-void AttackTopTower::updateViveCounters() {
-  unsigned long now = millis();
-  if (now - _lastSampleMs < _samplePeriodMs) return;
-  _lastSampleMs = now;
-
-  RobotPosition::Position p = _pos.getRobotPosition(MID);
-  // Vive 0 means "no fix this frame" (see RobotPosition::updateTracker
-  // when status != VIVE_RECEIVING). Treat as a miss for every counter.
-  if (p.x <= 0.5f && p.y <= 0.5f) {
-    _entryHits = 0;
-    _trigHits  = 0;
-    _exitHits  = 0;
-    return;
-  }
-
-  // Entry gateway — only relevant before the entry flag fires.
-  if (!_entryFlag) {
-    if (inWindow(p.x, p.y, _entryX, _entryY, _entryXTol, _entryYTol)) {
-      if (_entryHits < 255) _entryHits++;
-      if (_entryHits >= _confirmN) {
-        _entryFlag = true;
-        Serial.printf("[ATT] entry gateway confirmed at (%.0f,%.0f) -- now watching trigger\n",
-                      p.x, p.y);
-      }
-    } else {
-      _entryHits = 0;
-    }
-  }
-
-  // Trigger window — only counted once we've cleared the entry gateway.
-  if (_entryFlag) {
-    if (inWindow(p.x, p.y, _trigX, _trigY, _trigXTol, _trigYTol)) {
-      if (_trigHits < 255) _trigHits++;
-    } else {
-      _trigHits = 0;
-    }
-
-    // Exit/abort gateway — also only counted after the entry flag, so
-    // jitter near (3622, 3000) before we even reached the bridge cannot
-    // abort us prematurely.
-    if (inWindow(p.x, p.y, _exitX, _exitY, _exitXTol, _exitYTol)) {
-      if (_exitHits < 255) _exitHits++;
-    } else {
-      _exitHits = 0;
-    }
-  }
-}
-
-void AttackTopTower::enterRotate() {
-  Serial.println("[ATT] trigger fired -- rotating 90 CCW");
-  _wf.onExit();
-  _dt.stop();
-  _step = ATT_ROTATE_CCW;
-  // Drivetrain::rotateNinety: dir==0 -> CW, anything else -> CCW.
-  _dt.rotateNinety(/*CCW*/ 1);
-}
-
-void AttackTopTower::enterApproach() {
-  Serial.println("[ATT] rotation done -- approaching button until front ToF stops us");
-  _step = ATT_APPROACH;
-  _dt.driveDirect(_approachPwm, _approachPwm);
-}
-
-void AttackTopTower::enterPress() {
-  Serial.println("[ATT] front ToF threshold hit -- pressing");
-  _dt.stop();
-  _step = ATT_PRESS;
-  _presser.onEnter();
-}
-
-void AttackTopTower::abortToDone(const char* why) {
-  Serial.printf("[ATT] aborting: %s -- exit-gateway overshoot, returning to manual\n", why);
-  _wf.onExit();
-  _dt.stop();
-  _step = ATT_DONE;
+  _pressesDone    = 0;
+  _wallFollowStart = 0;
+  _step           = ATT_LOW_TOWER;
+  _lowTower.onEnter();
 }
 
 void AttackTopTower::update() {
+  unsigned long now = millis();
+
   switch (_step) {
 
-    case ATT_WALL_TO_BRIDGE: {
-      _wf.update();
-      updateViveCounters();
-      // Once the entry gate trips, we move to ON_BRIDGE state. The
-      // robot keeps wall-following without interruption.
-      if (_entryFlag) {
-        _step = ATT_WALL_ON_BRIDGE;
+    // ── 1. LowTower ──────────────────────────────────────────────────
+    case ATT_LOW_TOWER:
+      _lowTower.update();
+      if (_lowTower.isDone()) {
+        _lowTower.onExit();
+        Serial.println("[ATT] LowTower done -> back up");
+        _dt.straightMove(-_backUpInches);
+        _step = ATT_BACK_UP;
       }
       break;
-    }
 
-    case ATT_WALL_ON_BRIDGE: {
-      _wf.update();
-      updateViveCounters();
-      // Trigger fires first wins.
-      if (_trigHits >= 2) {
-        enterRotate();
-      } else if (_exitHits >= _confirmN) {
-        // Overshot the trigger window without firing. Abort.
-        abortToDone("crossed exit gateway");
+    // ── 2. Back up ───────────────────────────────────────────────────
+    case ATT_BACK_UP:
+      if (_dt.updateStraightMove(now)) {
+        Serial.println("[ATT] back up done -> rotate 180 (1/2)");
+        _dt.rotateNinety(0 /*CW*/);
+        _step = ATT_ROTATE_180_1;
       }
       break;
-    }
 
-    case ATT_ROTATE_CCW: {
-      if (_dt.updateRotateNinety(millis())) {
-        enterApproach();
+    // ── 3a. First 90° CW ─────────────────────────────────────────────
+    case ATT_ROTATE_180_1:
+      if (_dt.updateRotateNinety(now)) {
+        Serial.println("[ATT] rotate 180 (1/2) done -> rotate 180 (2/2)");
+        _dt.rotateNinety(0 /*CW*/);
+        _step = ATT_ROTATE_180_2;
       }
       break;
-    }
 
-    case ATT_APPROACH: {
-      // Re-issue the command each tick in case anything else writes
-      // motor PWM. Cheap insurance.
-      _dt.driveDirect(_approachPwm, _approachPwm);
-      if (_tofs.front() <= _frontStopMm && _tofs.front() > 1.0f) {
-        // (>1.0 guard: ToF returns ~0 momentarily on bad reads; ignore.)
-        enterPress();
+    // ── 3b. Second 90° CW ────────────────────────────────────────────
+    case ATT_ROTATE_180_2:
+      if (_dt.updateRotateNinety(now)) {
+        delay(75);
+        Serial.println("[ATT] rotate 180 (2/2) done -> centering");
+        _centering.onEnter();
+        _centering.setFrontStopThreshold(_frontStopMm);
+        _step = ATT_CENTER;
       }
       break;
-    }
 
-    case ATT_PRESS: {
-      _presser.update();
-      if (_presser.isDone()) {
-        _presser.onExit();
-        Serial.println("[ATT] press done -- sequence complete");
+    // ── 4. Center to nexus ───────────────────────────────────────────
+    case ATT_CENTER:
+      _centering.update();
+      if (_centering.isDone()) {
+        _centering.onExit();
+        _centering.setFrontStopThreshold(0.0f);
+        Serial.println("[ATT] centering done -> press 1");
+        _pressesDone = 0;
+        _nexusPresser.onEnter();
+        _step = ATT_PRESS;
+      }
+      break;
+
+    // ── 5. Press nexus x4 ────────────────────────────────────────────
+    case ATT_PRESS:
+      _nexusPresser.update();
+      if (_nexusPresser.isDone()) {
+        _nexusPresser.onExit();
+        _pressesDone++;
+        Serial.printf("[ATT] press %d/%d done\n", _pressesDone, _pressCount);
+        if (_pressesDone < _pressCount) {
+          _nexusPresser.onEnter();
+        } else {
+          Serial.println("[ATT] all presses done -> rotate CW");
+          _dt.rotateNinety(0 /*CW*/);
+          _step = ATT_ROTATE_CW_1;
+        }
+      }
+      break;
+
+    // ── 6. Rotate 90° CW ─────────────────────────────────────────────
+    case ATT_ROTATE_CW_1:
+      if (_dt.updateRotateNinety(now)) {
+        delay(75);
+        Serial.println("[ATT] rotate CW done -> fwd 5");
+        _dt.straightMove(8);
+        _step = ATT_FWD_5A;
+      }
+      break;
+
+    // ── 7. Forward 5 in ──────────────────────────────────────────────
+    case ATT_FWD_5A:
+      if (_dt.updateStraightMove(now)) {
+        Serial.println("[ATT] fwd 5A done -> rotate CCW");
+        _dt.rotateNinety(1 /*CCW*/);
+        _step = ATT_ROTATE_CCW_1;
+      }
+      break;
+
+    // ── 8. Rotate 90° CCW ────────────────────────────────────────────
+    case ATT_ROTATE_CCW_1:
+      if (_dt.updateRotateNinety(now)) {
+        delay(75);
+        Serial.println("[ATT] rotate CCW done -> fwd 5");
+        _dt.straightMove(9);
+        _step = ATT_FWD_5B;
+      }
+      break;
+
+    // ── 9. Forward 5 in ──────────────────────────────────────────────
+    case ATT_FWD_5B:
+      if (_dt.updateStraightMove(now)) {
+        Serial.println("[ATT] fwd 5B done -> rotate CW");
+        _dt.rotateNinety(0 /*CW*/);
+        _step = ATT_ROTATE_CW_2;
+      }
+      break;
+
+    // ── 10. Rotate 90° CW ────────────────────────────────────────────
+    case ATT_ROTATE_CW_2:
+      if (_dt.updateRotateNinety(now)) {
+        delay(75);
+        Serial.println("[ATT] rotate CW (2) done -> fwd 10");
+        _dt.straightMove(20);
+        _step = ATT_FWD_10;
+      }
+      break;
+
+    // ── 11. Forward 10 in ────────────────────────────────────────────
+    case ATT_FWD_10:
+      if (_dt.updateStraightMove(now)) {
+        Serial.println("[ATT] fwd 10 done -> wall follow");
+        _dt.rotateNinety(0 /*CW*/);
+        _step = ATT_ROTATE_CW_3;
+        // _wallFollowStart = millis();
+        // _wallFollow.onEnter();
+        // _step = ATT_WALL_FOLLOW;
+      }
+      break;
+    
+    case ATT_ROTATE_CW_3:
+      if (_dt.updateRotateNinety(now)) {
+        delay(75);
+        Serial.println("[ATT] rotate CW (2) done -> fwd 10");
+        _dt.straightMove(9);
+        _step = ATT_FWD_9;
+      }
+      break;
+    
+    case ATT_FWD_9:
+      if (_dt.updateStraightMove(now)) {
+        Serial.println("[ATT] fwd 9 done -> wall follow");
+        _centeringStart = millis(); 
+        _centering.onEnter();
+        _centering.setFrontStopThreshold(_frontStopMm);
+        _step = ATT_CENTER_2;
+      }
+      break;
+    
+    case ATT_CENTER_2:
+      _centering.update();
+
+      // Check if 4 seconds (4000ms) have elapsed
+      if (millis() - _centeringStart >= 4000) {
+        _centering.onExit();
+        _centering.setFrontStopThreshold(0.0f); // Reset threshold
+        
+        Serial.println("[ATT] centering 2 timed out -> pressing nexus");
+        _pressesDone = 0;
+        _nexusPresser.onEnter();
+        _step = ATT_ROTATE_FINAL;
+      }
+      break;
+
+    // ── 12. Wall follow for _wallFollowMs ────────────────────────────
+    // case ATT_WALL_FOLLOW:
+    //   _wallFollow.update();
+    //   if (millis() - _wallFollowStart >= _wallFollowMs) {
+    //     _wallFollow.onExit();
+    //     Serial.println("[ATT] wall follow done -> rotate CCW");
+    //     _dt.rotateNinety(1 /*CCW*/);
+    //     _step = ATT_ROTATE_FINAL;
+    //   }
+    //   break;
+
+    // ── 13. Rotate 90° CCW ───────────────────────────────────────────
+    case ATT_ROTATE_FINAL:
+      if (_dt.updateRotateNinety(now)) {
+        delay(75);
+        Serial.println("[ATT] final rotate done -> final press");
+        _finalPresser.onEnter();
+        _step = ATT_FINAL_PRESS;
+      }
+      break;
+
+    // ── 14. Final approach + 8.5s hold + retreat ─────────────────────
+    case ATT_FINAL_PRESS:
+      _finalPresser.update();
+      if (_finalPresser.isDone()) {
+        _finalPresser.onExit();
+        Serial.println("[ATT] final press done -> DONE");
+        _dt.stop();
         _step = ATT_DONE;
       }
       break;
-    }
 
     case ATT_DONE:
-      // Idle. Supervisor sees isDone() and routes us back to MANUAL_DRIVE.
       break;
   }
 }
 
 void AttackTopTower::onExit() {
   Serial.println("AttackTopTower::onExit");
-  // Tear down whichever sub-mode might still be active so we don't
-  // leak state if the user aborts mid-sequence.
   switch (_step) {
-    case ATT_WALL_TO_BRIDGE:
-    case ATT_WALL_ON_BRIDGE:
-      _wf.onExit();
+    case ATT_LOW_TOWER:
+      _lowTower.onExit();
+      break;
+    case ATT_CENTER:
+      _centering.onExit();
+      _centering.setFrontStopThreshold(0.0f);
       break;
     case ATT_PRESS:
-      _presser.onExit();
+      _nexusPresser.onExit();
+      break;
+    case ATT_WALL_FOLLOW:
+      _wallFollow.onExit();
+      break;
+    case ATT_FINAL_PRESS:
+      _finalPresser.onExit();
       break;
     default:
       break;

@@ -44,10 +44,10 @@ void LowTower::update() {
       if (_dt.updateRotateNinety(now)) {
         Serial.println("LowTower: rotate 2 done -> centering");
         _step = LT_CENTER;
+        _centering.onEnter();                          // reset happens inside
+        _centering.setFrontStopThreshold(_frontStopMm); // set AFTER onEnter
         // Configure Centering to auto-stop when we reach the tower,
         // then activate it as a nested Mode.
-        _centering.setFrontStopThreshold(_frontStopMm);
-        _centering.onEnter();
       }
       break;
 

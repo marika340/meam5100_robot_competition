@@ -61,7 +61,7 @@ void Motor::resetEncoder() {
   _enc.write(0);
   _prevCount  = 0;
   _prevTimeMs = millis();
-  _rpmInit    = false; //CHANGE THIS
+  _rpmInit    = true; //CHANGE THIS
 }
 
 float Motor::computeRPM(unsigned long nowMs) {

@@ -11,6 +11,7 @@ void Centering::onEnter() {
   _pid.reset();
   _lastMs = millis();
   _done   = false;
+  _frontStopThreshold = 0.0f;
   _dt.stop();    // clean slate; raw drive will take over from update()
 }
 

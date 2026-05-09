@@ -46,14 +46,14 @@ private:
 
   // Geometry / tuning
   float _desiredWallDist  = 67.0f; //CHANGED FROM 60 ORIGINAL, 75 COULD NOT HANDLE CORNERS WELL, 65 sometimes goes to ramp and sometimes avoids ramp, 55 avoids ramp
-  float _frontStopDist    = 320.0f;  // increased so robot starts turning sooner, wall attack: 280, 275 worked, original: 300, 280
+  float _frontStopDist    = 340.0f;  // increased so robot starts turning sooner, wall attack: 280, 275 worked, original: 300, 280, 320
   float _wallLostDist     = 600.0f;
-  float _turnClearDist    = 320.0f; // MUST stay > _frontStopDist or handleCorner() pivot loop never runs, wall attack: 285, original: 300, 285
+  float _turnClearDist    = 340.0f; // MUST stay > _frontStopDist or handleCorner() pivot loop never runs, wall attack: 285, original: 300, 285, 320
   float _switchMargin     = 40.0f;
   int   _baseSpeed        = 140;
   int   _minSpeed         = 80;
   int   _maxSpeed         = 220;
-  int   _sharpTurnOffset  = 75;
+  int   _sharpTurnOffset  = 75; // 75
 
   bool          _followRight = false;
   unsigned long _lastLoopMs  = 0;
