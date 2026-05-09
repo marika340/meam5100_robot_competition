@@ -36,7 +36,7 @@ void WallFollow::handleCorner() {
   delay(150);
 
   // 2) Pivot in place until front is clear past turnClearDist
-  while ((_tof.front() < _turnClearDist) && (_tof.left() < 0.5 * _turnClearDist)) {
+  while ((_tof.front() < _turnClearDist)) {
     if (_followRight) _dt.driveDirect(-_sharpTurnOffset,  _sharpTurnOffset);
     else              _dt.driveDirect( _sharpTurnOffset, -_sharpTurnOffset);
     _tof.update();
