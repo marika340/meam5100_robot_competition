@@ -12,6 +12,7 @@
 //   PressTower.h/cpp      - non-blocking approach/hold/retreat Mode
 //   LowTower.h/cpp        - composite Mode: straight -> rotate x2 -> center -> press
 //   WebController.h/cpp   - WiFi + HTTP UI
+//   ESPNowReceiver.h/cpp  - ESP-NOW receive bridge (PC -> ESP1 -> this device)
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -31,6 +32,7 @@
 #include "TopHat.h"
 #include "Attacker.h"
 #include "ViveNavigation.h"
+#include "ESPNowReceiver.h"
 
 // PIN / HARDWARE CONFIG
 
@@ -99,6 +101,9 @@ const char* password = "#allnighter";   // must be at least 8 characters for WPA
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);
 WebController web(manualDrive, wallFollow, onModeChange);
+
+// ESP-NOW receiver (PC -> ESP1 -> this device)
+ESPNowReceiver espNow;
 
 // Top Hat Packer Updater
 int packetCounter = 0;
@@ -205,6 +210,28 @@ void onStraightMove(int inches) {
 }
 
 
+// ── ESP-NOW callbacks ─────────────────────────────────────────────────
+// Called by ESPNowReceiver::update() on the main loop — safe to call
+// any drivetrain or mode function here.
+
+// DRIVE command: switch to MANUAL_DRIVE and apply RPM + direction.
+void onEspNowDrive(float rpm, int leftDir, int rightDir) {
+  if (carMode != MANUAL_DRIVE) enterMode(MANUAL_DRIVE);
+  manualDrive.setTargetRPM(rpm);
+  manualDrive.setDirection(leftDir, rightDir);
+}
+
+// MODE command: reuse the existing web-controller mode-change path.
+void onEspNowMode(int mode) {
+  onModeChange(mode);
+}
+
+// STOP command: immediate drivetrain stop, return to MANUAL_DRIVE.
+void onEspNowStop() {
+  drivetrain.stop();
+  enterMode(MANUAL_DRIVE);
+}
+
 // SETUP
 void setup() {
   Serial.begin(115200);
@@ -230,6 +257,12 @@ void setup() {
   web.begin(ssid, password);
   web.setStraightMoveCallback(onStraightMove);
 
+  // ESP-NOW receiver (must come after web.begin() so WiFi channel is set)
+  espNow.setDriveCallback(onEspNowDrive);
+  espNow.setModeCallback(onEspNowMode);
+  espNow.setStopCallback(onEspNowStop);
+  espNow.begin();
+
   // Boot directly into ManualDrive. carMode is already MANUAL_DRIVE so
   // enterMode would short-circuit; activate the Mode explicitly.
   currentMode = &manualDrive;
@@ -246,6 +279,7 @@ void loop() {
   robotPos.callibrate();
   arm.update();
   TopHat();
+  espNow.update();       // dispatch any pending ESP-NOW command
 
   // Gate the position telemetry — printf-ing every loop iteration
   // saturates the UART and slows the main loop noticeably.
