@@ -65,7 +65,9 @@ private:
   static void hAttack();
   static void hStraight();
   static void hViveNav();
-  static void hState();   // /state -> JSON of telemetry (AttackTopTower + Vive MID)
+  static void hState();        // /state     -> JSON telemetry (AttackTopTower + Vive MID)
+  static void hViveCalibrate(); // /calibrate= -> LINEST regression, updates NavigationTools coefficients
+  static void hCoeff();         // /coeff      -> JSON of current NavigationTools coefficients
 };
 
 #endif // WEB_CONTROLLER_H

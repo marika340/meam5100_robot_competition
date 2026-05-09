@@ -93,8 +93,8 @@ AttackTopTower AttackTopTower(drivetrain, lowTower, centering,
 // const char* ssid     = "DAMN";
 // const char* password = "damnbroo";
 
-const char* ssid     = "where the hell";
-const char* password = "#allnighter";   // must be at least 8 characters for WPA2
+const char* ssid     = "goodluck";
+const char* password = "#thiswillwork";   // must be at least 8 characters for WPA2
 
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);

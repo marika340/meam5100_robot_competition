@@ -130,7 +130,73 @@ const char body[] PROGMEM = R"===(
         Vive Y: <input type="number" id="vyInput" placeholder="e.g. 3200" style="width: 80px;">
     </div>
     <button id="m10" onclick="sendVive()">Navigate to Vive</button>
+    <div id="viveRealCoords" style="font-family:monospace; font-size:12px; color:#555; margin-top:6px; min-height:1.4em;">
+        Real X: --, Real Y: --
+    </div>
 </div>
+
+    <hr>
+    <h3>Vive Calibration</h3>
+    <p style="font-size:12px; color:#666; margin:0 0 8px 0;">
+        Position the robot at each labeled field point, read Vive coords (e.g. from Serial or telemetry), enter below, then click Calibrate.
+        Real coords (inches from center of low tower) are fixed.
+    </p>
+    <table style="font-size:13px; border-collapse:collapse; margin:0 auto;">
+        <tr style="background:#eee;">
+            <th style="padding:4px 10px;">Point</th>
+            <th style="padding:4px 10px;">Real X (in)</th>
+            <th style="padding:4px 10px;">Real Y (in)</th>
+            <th style="padding:4px 10px;">Vive X</th>
+            <th style="padding:4px 10px;">Vive Y</th>
+        </tr>
+        <tr>
+            <td style="padding:3px 10px;text-align:center;font-weight:bold;">2</td>
+            <td style="padding:3px 10px;text-align:center;">-24</td>
+            <td style="padding:3px 10px;text-align:center;">0</td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p2_x" step="0.5" style="width:72px;" placeholder="e.g. 4745"></td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p2_y" step="0.5" style="width:72px;" placeholder="e.g. 4526"></td>
+        </tr>
+        <tr style="background:#f9f9f9;">
+            <td style="padding:3px 10px;text-align:center;font-weight:bold;">3</td>
+            <td style="padding:3px 10px;text-align:center;">-5.75</td>
+            <td style="padding:3px 10px;text-align:center;">0</td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p3_x" step="0.5" style="width:72px;" placeholder="e.g. 4058"></td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p3_y" step="0.5" style="width:72px;" placeholder="e.g. 4511"></td>
+        </tr>
+        <tr>
+            <td style="padding:3px 10px;text-align:center;font-weight:bold;">4</td>
+            <td style="padding:3px 10px;text-align:center;">5.75</td>
+            <td style="padding:3px 10px;text-align:center;">0</td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p4_x" step="0.5" style="width:72px;" placeholder="e.g. 3484"></td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p4_y" step="0.5" style="width:72px;" placeholder="e.g. 4534"></td>
+        </tr>
+        <tr style="background:#f9f9f9;">
+            <td style="padding:3px 10px;text-align:center;font-weight:bold;">5</td>
+            <td style="padding:3px 10px;text-align:center;">24</td>
+            <td style="padding:3px 10px;text-align:center;">0</td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p5_x" step="0.5" style="width:72px;" placeholder="e.g. 2724"></td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p5_y" step="0.5" style="width:72px;" placeholder="e.g. 4641"></td>
+        </tr>
+        <tr>
+            <td style="padding:3px 10px;text-align:center;font-weight:bold;">7</td>
+            <td style="padding:3px 10px;text-align:center;">0</td>
+            <td style="padding:3px 10px;text-align:center;">17.75</td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p7_x" step="0.5" style="width:72px;" placeholder="e.g. 3727"></td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p7_y" step="0.5" style="width:72px;" placeholder="e.g. 5216"></td>
+        </tr>
+        <tr style="background:#f9f9f9;">
+            <td style="padding:3px 10px;text-align:center;font-weight:bold;">8</td>
+            <td style="padding:3px 10px;text-align:center;">0</td>
+            <td style="padding:3px 10px;text-align:center;">-15.75</td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p8_x" step="0.5" style="width:72px;" placeholder="e.g. 3622"></td>
+            <td style="padding:3px 4px;"><input type="number" id="cal_p8_y" step="0.5" style="width:72px;" placeholder="e.g. 3856"></td>
+        </tr>
+    </table>
+    <div style="margin-top:10px;">
+        <button onclick="runCalibration()" style="background-color:#4CAF50;color:white;width:200px;font-weight:bold;">Run Calibration</button>
+        <button onclick="clearCalib()" style="background-color:#9e9e9e;color:white;width:100px;">Clear</button>
+    </div>
+    <div id="calibResult" style="font-family:monospace;font-size:12px;margin-top:10px;padding:8px;border-radius:4px;display:none;text-align:left;max-width:500px;margin-left:auto;margin-right:auto;"></div>
 
 <script>
     function sendGET(url) { var xhr = new XMLHttpRequest(); xhr.open("GET", url, true); xhr.send(); }
@@ -148,19 +214,152 @@ const char body[] PROGMEM = R"===(
         el.oninput = function() { document.getElementById(outId).innerHTML = this.value; sendGET(endpoint + this.value); };
     }
 
+    // ---- Calibration coefficient store (mirrors NavigationTools defaults) --
+    var coeffs = {
+        mx_xr: -0.02326407517, my_xr:  0.001761464417, c_xr:   78.568437,
+        mx_yr:  0.00132269917, my_yr:  0.0243494819,   c_yr: -115.5075201
+    };
+
+    // Recompute and display real X/Y from whatever is in the Vive Nav inputs.
+    function updateViveRealDisplay() {
+        var xv = parseFloat(document.getElementById('vxInput').value);
+        var yv = parseFloat(document.getElementById('vyInput').value);
+        var el = document.getElementById('viveRealCoords');
+        if (isNaN(xv) || isNaN(yv) || document.getElementById('vxInput').value === '' || document.getElementById('vyInput').value === '') {
+            el.textContent = 'Real X: --, Real Y: --';
+            return;
+        }
+        var rx = coeffs.mx_xr * xv + coeffs.my_xr * yv + coeffs.c_xr;
+        var ry = coeffs.mx_yr * xv + coeffs.my_yr * yv + coeffs.c_yr;
+        el.textContent = 'Real X: ' + rx.toFixed(2) + ' in,  Real Y: ' + ry.toFixed(2) + ' in';
+    }
+
+    // Fetch current coefficients from the robot (runs on page load).
+    function fetchCoeffs() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/coeff', true);
+        xhr.timeout = 1500;
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                try { coeffs = JSON.parse(xhr.responseText); updateViveRealDisplay(); } catch(e) {}
+            }
+        };
+        xhr.send();
+    }
+
     function sendVive() {
-    var x = document.getElementById('vxInput').value;
-    var y = document.getElementById('vyInput').value;
-    if(x && y) {
-        // Sends /goto_vive?x=XXXX&y=YYYY
-        sendGET("/goto_vive?x=" + x + "&y=" + y);
-        // Also switch the mode visually to your new Nav mode (e.g. Mode 10)
-        setMode(10); 
-    } else {
-        alert("Please enter both X and Y Vive coordinates");
+        var x = document.getElementById('vxInput').value;
+        var y = document.getElementById('vyInput').value;
+        if (x && y) {
+            sendGET("/goto_vive?x=" + x + "&y=" + y);
+            setMode(10);
+        } else {
+            alert("Please enter both X and Y Vive coordinates");
         }
     }
-    
+
+    // Update real-coord display whenever either Vive Nav input changes.
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('vxInput').addEventListener('input', updateViveRealDisplay);
+        document.getElementById('vyInput').addEventListener('input', updateViveRealDisplay);
+        fetchCoeffs();
+    });
+
+    // ---- Vive Calibration -------------------------------------------
+    // Known real coords (in) for each point, ordered 2,3,4,5,7,8.
+    var CAL_REAL_X = [-24, -5.75, 5.75, 24, 0, 0];
+    var CAL_REAL_Y = [0, 0, 0, 0, 17.75, -15.75];
+    var CAL_IDS    = ['p2','p3','p4','p5','p7','p8'];
+
+    function coeffRow(label, val) {
+        return '<tr><td style="padding:1px 8px;color:#555;">' + label + '</td>' +
+               '<td style="padding:1px 8px;font-weight:bold;">' + val.toFixed(9) + '</td></tr>';
+    }
+
+    function showCoeffTable(r) {
+        return '<table style="border-collapse:collapse;font-size:12px;font-family:monospace;margin:6px auto;">' +
+            '<tr><th colspan="2" style="text-align:left;padding:2px 8px;border-bottom:1px solid #aaa;">X_real = mx_xr·Xv + my_xr·Yv + c_xr</th></tr>' +
+            coeffRow('mx_xr', r.mx_xr) + coeffRow('my_xr', r.my_xr) + coeffRow('c_xr',  r.c_xr) +
+            '<tr><th colspan="2" style="text-align:left;padding:4px 8px 2px;border-bottom:1px solid #aaa;border-top:1px solid #aaa;">Y_real = mx_yr·Xv + my_yr·Yv + c_yr</th></tr>' +
+            coeffRow('mx_yr', r.mx_yr) + coeffRow('my_yr', r.my_yr) + coeffRow('c_yr',  r.c_yr) +
+            '</table>';
+    }
+
+    function runCalibration() {
+        var vals = [];
+        for (var i = 0; i < CAL_IDS.length; i++) {
+            var xv = document.getElementById('cal_' + CAL_IDS[i] + '_x').value;
+            var yv = document.getElementById('cal_' + CAL_IDS[i] + '_y').value;
+            if (xv === '' || yv === '') {
+                alert('Please fill in Vive X and Y for all 6 points (2,3,4,5,7,8).');
+                return;
+            }
+            vals.push(parseFloat(xv));
+            vals.push(parseFloat(yv));
+        }
+        var url = '/calibrate=' + vals.join(',');
+        var res = document.getElementById('calibResult');
+        res.style.display = 'block';
+        res.style.background = '#fffde7';
+        res.style.color = '#333';
+        res.innerHTML = 'Running calibration...';
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.timeout = 4000;
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                try {
+                    var r = JSON.parse(xhr.responseText);
+                    if (r.ok) {
+                        // Store new coefficients and refresh the Vive Nav display
+                        coeffs = {mx_xr: r.mx_xr, my_xr: r.my_xr, c_xr: r.c_xr,
+                                  mx_yr: r.mx_yr, my_yr: r.my_yr, c_yr: r.c_yr};
+                        updateViveRealDisplay();
+                        res.style.background = '#e8f5e9';
+                        res.style.color = '#1b5e20';
+                        res.innerHTML = '<strong>Calibration OK — coefficients updated on robot:</strong>' +
+                                        showCoeffTable(r);
+                    } else {
+                        res.style.background = '#ffebee';
+                        res.style.color = '#b71c1c';
+                        res.innerHTML = 'Calibration FAILED: ' + (r.err || 'unknown error') +
+                                        '. Check that Vive values are spread across all 6 distinct points.';
+                    }
+                } catch(e) {
+                    res.style.background = '#ffebee';
+                    res.style.color = '#b71c1c';
+                    res.innerHTML = 'Could not parse response. Is the robot connected?';
+                }
+            } else {
+                res.style.background = '#ffebee';
+                res.style.color = '#b71c1c';
+                res.innerHTML = 'HTTP error ' + xhr.status;
+            }
+        };
+        xhr.ontimeout = function() {
+            res.style.background = '#ffebee';
+            res.style.color = '#b71c1c';
+            res.innerHTML = 'Request timed out. Is the robot connected?';
+        };
+        xhr.onerror = function() {
+            res.style.background = '#ffebee';
+            res.style.color = '#b71c1c';
+            res.innerHTML = 'Network error. Is the robot connected?';
+        };
+        xhr.send();
+    }
+
+    function clearCalib() {
+        for (var i = 0; i < CAL_IDS.length; i++) {
+            document.getElementById('cal_' + CAL_IDS[i] + '_x').value = '';
+            document.getElementById('cal_' + CAL_IDS[i] + '_y').value = '';
+        }
+        var res = document.getElementById('calibResult');
+        res.style.display = 'none';
+        res.innerHTML = '';
+    }
+    // -----------------------------------------------------------------
+
     // Aligned with backend handlers
     setupInput("rpmSlider", "rpmOut", "/motor_speed=");
     setupInput("kpSlider",  "kpOut",  "/Kp=");
