@@ -108,7 +108,7 @@ void AttackTopTower::update() {
       if (_dt.updateRotateNinety(now)) {
         delay(75);
         Serial.println("[ATT] rotate CW done -> fwd 5");
-        _dt.straightMove(8);
+        _dt.straightMove(9);
         _step = ATT_FWD_5A;
       }
       break;
@@ -127,7 +127,7 @@ void AttackTopTower::update() {
       if (_dt.updateRotateNinety(now)) {
         delay(75);
         Serial.println("[ATT] rotate CCW done -> fwd 5");
-        _dt.straightMove(9);
+        _dt.straightMove(11);
         _step = ATT_FWD_5B;
       }
       break;
@@ -146,7 +146,7 @@ void AttackTopTower::update() {
       if (_dt.updateRotateNinety(now)) {
         delay(75);
         Serial.println("[ATT] rotate CW (2) done -> fwd 10");
-        _dt.straightMove(20);
+        _dt.straightMove(25);
         _step = ATT_FWD_10;
       }
       break;
@@ -186,13 +186,14 @@ void AttackTopTower::update() {
       _centering.update();
 
       // Check if 4 seconds (4000ms) have elapsed
-      if (millis() - _centeringStart >= 4000) {
+      if (millis() - _centeringStart >= 6000) {
         _centering.onExit();
         _centering.setFrontStopThreshold(0.0f); // Reset threshold
         
         Serial.println("[ATT] centering 2 timed out -> pressing nexus");
         _pressesDone = 0;
         _nexusPresser.onEnter();
+        _dt.rotateNinety(1 /*CW*/);
         _step = ATT_ROTATE_FINAL;
       }
       break;
