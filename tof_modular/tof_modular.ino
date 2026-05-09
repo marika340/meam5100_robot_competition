@@ -85,8 +85,8 @@ AttackTopTower attackTopTower(drivetrain, wallFollow, robotPos, tofs, topTowerPr
 // WiFi
 // const char* ssid     = "Junyi's iPhone";
 // const char* password = "d6Hc-VSwL-MyCa-P5Hb";
-const char* ssid     = "TP-Link_8A8C";
-const char* password = "12488674";
+//const char* ssid     = "TP-Link_8A8C";
+//const char* password = "12488674";
 
 // const char* ssid     = "Natalie Reid's iPhone";
 // const char* password = "greentree";
@@ -100,8 +100,8 @@ const char* password = "12488674";
 // const char* ssid = "DAMN"; // come up with your own personal SSID
 // const char* password = "damnedifidodamnedifidont";
 
-// const char* ssid = "DAMN"; // come up with your own personal SSID
-// const char* password = "damnbroo";
+const char* ssid = "DAMN"; // come up with your own personal SSID
+const char* password = "damnbroo";
 
 // IPAddress myIP(192, 168, 1, 1);  // gateway-style address for AP mode
 // WiFiServer server(80);
@@ -225,7 +225,7 @@ void setup() {
   drivetrain.begin();
   arm.begin();
 
-  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
+  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins 
 
   Wire.begin();
   Wire.setClock(400000);
