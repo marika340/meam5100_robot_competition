@@ -20,7 +20,8 @@ void WebController::begin(const char* ssid, const char* password) {
   // while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   // Serial.println("\nWiFi connected");
   // Serial.print("IP: "); Serial.println(WiFi.localIP());
-  WiFi.softAP(ssid, password, 11);
+
+  WiFi.softAP(ssid, password, 5);
   Serial.println("\nAP mode started");
   Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
 

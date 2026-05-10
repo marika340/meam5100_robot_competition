@@ -186,7 +186,7 @@ void AttackTopTower::update() {
       _centering.update();
 
       // Check if 4 seconds (4000ms) have elapsed
-      if (millis() - _centeringStart >= 6000) {
+      if (millis() - _centeringStart >= 7777) {
         _centering.onExit();
         _centering.setFrontStopThreshold(0.0f); // Reset threshold
         

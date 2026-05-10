@@ -27,6 +27,7 @@
 #include "AttackNexus.h"
 #include "AttackTopTower.h"
 #include "WebController.h"
+#include "EspNowController.h"
 #include "RobotPosition.h"
 #include "TopHat.h"
 #include "Attacker.h"
@@ -100,6 +101,13 @@ const char* password = "thiswillwork";   // must be at least 8 characters for WP
 // Forward declaration: web -> main mode change callback
 void onModeChange(int mode);
 WebController web(manualDrive, wallFollow, onModeChange);
+
+// ESP-NOW input path. Coexists with WebController on the same softAP
+// radio/channel — both controllers route into the same ManualDrive /
+// WallFollow / onModeChange plumbing, so the HTML UI keeps working
+// unchanged while the bridge ESP can also drive the robot. Logs from
+// this path are tagged [ESPNOW seq=N] for easy distinction from web logs.
+EspNowController espnow(manualDrive, wallFollow, onModeChange);
 
 // Top Hat Packer Updater
 int packetCounter = 0;
@@ -216,7 +224,7 @@ void setup() {
   drivetrain.begin();
   arm.begin();
 
-  Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
+  Wire1.begin(SDA_pin, SCL_pin, 10000); //tophat pins
 
   Wire.begin();
   Wire.setClock(400000);
@@ -228,8 +236,19 @@ void setup() {
   }
 
   // WiFi + handlers
+  Serial.println("[setup] before web.begin");
+  Serial.flush();
   web.begin(ssid, password);
+  Serial.println("[setup] after web.begin");
   web.setStraightMoveCallback(onStraightMove);
+
+  // ESP-NOW (must run AFTER web.begin so softAP/channel are live).
+  // Prints the robot's AP MAC + channel — copy those into bridge_espnow.ino.
+  Serial.println("[setup] before espnow.begin");
+  Serial.flush();
+  espnow.begin();
+  Serial.println("[setup] after espnow.begin");
+  espnow.setStraightMoveCallback(onStraightMove);
 
   // Boot directly into ManualDrive. carMode is already MANUAL_DRIVE so
   // enterMode would short-circuit; activate the Mode explicitly.
@@ -243,6 +262,7 @@ void setup() {
 // LOOP
 void loop() {
   web.serve();           // always serve HTTP
+  espnow.poll();         // drain any ESP-NOW packets queued from bridge
   tofs.update();         // always read distances
   robotPos.callibrate();
   arm.update();
@@ -265,7 +285,12 @@ void loop() {
   // currentMode pointer. Modes that auto-complete (PressTower, LowTower,
   // Centering with a front-stop threshold) flag isDone() and the
   // supervisor returns to MANUAL_DRIVE on the next tick.
-  switch (carMode) {
+  if (health == 0) {
+    drivetrain.stop();
+    arm.stop();
+
+  } else {
+    switch (carMode) {
     case TRANSITION:
       drivetrain.stop();
       if (millis() - transitionStartMs > 300) enterMode(pendingMode);
@@ -287,5 +312,7 @@ void loop() {
         }
       }
       break;
+    }
   }
+  
 }

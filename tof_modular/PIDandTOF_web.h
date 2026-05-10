@@ -20,6 +20,7 @@ const char body[] PROGMEM = R"===(
         .d-pad { display: inline-block; width: 220px; }
         .attack-btn { background-color: #ff4444; color: white; height: 60px; width: 100%; font-weight: bold; margin-top: 10px; }
 
+        /* TELEMETRY PANEL CSS — commented out
         /* Telemetry panel pinned to the top-right, offset from the manual
            controls. Displays AttackTopTower bridge-gating counters and a
            live XY plot of the Vive MID position. */
@@ -48,37 +49,32 @@ const char body[] PROGMEM = R"===(
         .axisLine  { stroke: #999; stroke-width: 1; }
         .robotDot  { fill: #2196F3; stroke: #0d47a1; stroke-width: 1; }
         .robotTrail { fill: none; stroke: #2196F3; stroke-width: 1; opacity: 0.4; }
+        END TELEMETRY PANEL CSS */
     </style>
 </head>
 <body>
-    <!-- Telemetry panel: AttackTopTower counters + live Vive XY plot.
-         Position is fixed top-right so it doesn't overlap the controls. -->
+    <!-- TELEMETRY PANEL — commented out
     <div id="statusPanel">
         <h4>Telemetry</h4>
-        <div class="stateRow"><span class="k">entryHits</span><span class="v" id="sEntryHits">--</span></div>
-        <div class="stateRow"><span class="k">entryFlag</span><span class="v" id="sEntryFlag">--</span></div>
-        <div class="stateRow"><span class="k">trigHits</span><span class="v" id="sTrigHits">--</span></div>
-        <div class="stateRow"><span class="k">exitHits</span><span class="v" id="sExitHits">--</span></div>
-        <div class="stateRow"><span class="k">MID x,y</span><span class="v" id="sXY">--, --</span></div>
+        <div class="stateRow"><span class="k">entryHits</span><span class="v" id="sEntryHits">- -</span></div>
+        <div class="stateRow"><span class="k">entryFlag</span><span class="v" id="sEntryFlag">- -</span></div>
+        <div class="stateRow"><span class="k">trigHits</span><span class="v" id="sTrigHits">- -</span></div>
+        <div class="stateRow"><span class="k">exitHits</span><span class="v" id="sExitHits">- -</span></div>
+        <div class="stateRow"><span class="k">MID x,y</span><span class="v" id="sXY">- -, - -</span></div>
         <div class="graphWrap">
-            <!-- Plot: x vertical (1000 top → 7000 bottom),
-                       y horizontal (6000 left → 2000 right). -->
             <svg id="posGraph" viewBox="0 0 300 240" preserveAspectRatio="none">
-                <!-- background grid -->
                 <g id="gridX"></g>
                 <g id="gridY"></g>
-                <!-- axis labels -->
                 <text class="axisLabel" x="2"   y="12">x=1000</text>
                 <text class="axisLabel" x="2"   y="236">x=7000</text>
                 <text class="axisLabel" x="4"   y="232" transform="rotate(-90 4 232)">y=6000</text>
                 <text class="axisLabel" x="266" y="232" transform="rotate(-90 266 232)">y=2000</text>
-                <!-- trail of recent positions -->
                 <polyline id="posTrail" class="robotTrail" points=""/>
-                <!-- current robot position -->
                 <circle id="posDot" class="robotDot" cx="-10" cy="-10" r="5"/>
             </svg>
         </div>
     </div>
+    END TELEMETRY PANEL -->
 
     <h1>Team 8 Car</h1>
     
@@ -369,25 +365,21 @@ const char body[] PROGMEM = R"===(
     setupInput("wfkdslider", "wfkdout", "/wf_Kd=");
     setupInput("stoSlider",  "stoOut",  "/sharpTurn=");
 
-    // ---- Telemetry polling ------------------------------------------
-    // Plot dimensions match the SVG viewBox (300 x 240).
+    // ---- Telemetry polling — commented out -------------------------
+    /*
     var GW = 300, GH = 240;
-    // X axis is vertical: vx in [1000, 7000], vx=1000 -> top, vx=7000 -> bottom.
     function vxToScreenY(vx) {
         var v = Math.max(1000, Math.min(7000, vx));
         return ((v - 1000) / (7000 - 1000)) * GH;
     }
-    // Y axis is horizontal: vy in [2000, 6000], vy=6000 -> left, vy=2000 -> right.
     function vyToScreenX(vy) {
         var v = Math.max(2000, Math.min(6000, vy));
         return ((6000 - v) / (6000 - 2000)) * GW;
     }
 
-    // Pre-render grid lines (every 1000 mm in robot coords).
     (function drawGrid() {
         var gx = document.getElementById('gridX');
         var gy = document.getElementById('gridY');
-        // horizontal lines = constant robot-x
         for (var x = 1000; x <= 7000; x += 1000) {
             var sy = vxToScreenY(x);
             var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -396,7 +388,6 @@ const char body[] PROGMEM = R"===(
             ln.setAttribute('y1', sy); ln.setAttribute('y2', sy);
             gx.appendChild(ln);
         }
-        // vertical lines = constant robot-y
         for (var y = 2000; y <= 6000; y += 1000) {
             var sx = vyToScreenX(y);
             var ln2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -436,12 +427,14 @@ const char body[] PROGMEM = R"===(
                 if (trailPts.length > TRAIL_MAX) trailPts.shift();
                 document.getElementById('posTrail')
                         .setAttribute('points', trailPts.join(' '));
-            } catch (e) { /* ignore parse errors */ }
+            } catch (e) { }
         };
         xhr.send();
     }
     setInterval(pollState, 250);
     pollState();
+    */
+    // ---- End telemetry polling -------------------------------------
 </script>
 </body>
 </html>
