@@ -219,7 +219,8 @@ void setup() {
   Wire1.begin(SDA_pin, SCL_pin, 40000); //tophat pins
 
   Wire.begin();
-  Wire.setClock(400000);
+  // Wire.setClock(400000);
+  Wire.setClock(40000);
   if (!tofs.begin()) {
     Serial0.println("ToF init failed — webpage-only mode.");
   } else {

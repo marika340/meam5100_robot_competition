@@ -53,6 +53,7 @@ const char body[] PROGMEM = R"===(
 <body>
     <!-- Telemetry panel: AttackTopTower counters + live Vive XY plot.
          Position is fixed top-right so it doesn't overlap the controls. -->
+<!--
     <div id="statusPanel">
         <h4>Telemetry</h4>
         <div class="stateRow"><span class="k">entryHits</span><span class="v" id="sEntryHits">--</span></div>
@@ -79,7 +80,7 @@ const char body[] PROGMEM = R"===(
             </svg>
         </div>
     </div>
-
+ -->
     <h1>Team 8 Car</h1>
     
     <h3>Manual Drive & Auto Tuning</h3>
